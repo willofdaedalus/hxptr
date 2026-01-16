@@ -7,8 +7,8 @@
 
 # Compiler and flags
 CC := gcc
-CFLAGS := -Wall -Wextra -Wpedantic -std=c11 -O2
-CFLAGS_DEBUG := -Wall -Wextra -Wpedantic -std=c11 -g -O0 -DDEBUG
+CFLAGS := -Wall -Wextra -Wpedantic -std=gnu99
+CFLAGS_DEBUG := -Wall -Wextra -Wpedantic -std=gnu99 -g -DDEBUG
 LDFLAGS :=
 LIBS := -lm
 
@@ -58,9 +58,41 @@ all: cli
 # ============================================================================
 # Build Targets
 # ============================================================================
+#
+# AddressSanitizer (memory errors)
+asan: CFLAGS += -fsanitize=address -fno-omit-frame-pointer -g
+asan: LDFLAGS += -fsanitize=address
+asan: clean cli
+	@echo "✓ AddressSanitizer build complete"
+	@echo "Run with: ASAN_OPTIONS=detect_leaks=1 ./bin/hxptr test.hex"
 
+# UndefinedBehaviorSanitizer (undefined behavior)
+ubsan: CFLAGS += -fsanitize=undefined -fno-omit-frame-pointer -g
+ubsan: LDFLAGS += -fsanitize=undefined
+ubsan: clean cli
+	@echo "✓ UndefinedBehaviorSanitizer build complete"
+
+# MemorySanitizer (uninitialized reads) - Clang only
+msan: CC = clang
+msan: CFLAGS += -fsanitize=memory -fno-omit-frame-pointer -g
+msan: LDFLAGS += -fsanitize=memory
+msan: clean cli
+	@echo "✓ MemorySanitizer build complete"
+
+# ThreadSanitizer (data races) - if you add threading later
+tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g
+tsan: LDFLAGS += -fsanitize=thread
+tsan: clean cli
+	@echo "✓ ThreadSanitizer build complete"
+
+# All sanitizers (except msan which conflicts)
+sanitize-all: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g
+sanitize-all: LDFLAGS += -fsanitize=address,undefined
+sanitize-all: clean cli
+	@echo "✓ All sanitizers enabled"
 # CLI binary
 cli: $(CLI_BIN)
+
 
 $(CLI_BIN): $(CORE_OBJECTS) $(CLI_OBJECTS) | $(BIN_DIR)
 	@echo "Linking CLI binary: $@"
@@ -217,6 +249,25 @@ run-custom: cli
 	fi
 	$(CLI_BIN) $(HEX) $(ARGS)
 
+test-asan: asan $(TEST_BINS)
+	@echo "Running tests with AddressSanitizer..."
+	@ASAN_OPTIONS=detect_leaks=1 $(MAKE) test
+
+# Run tests with Valgrind
+test-valgrind: debug $(TEST_BINS)
+	@echo "Running tests with Valgrind..."
+	@for test in $(TEST_BINS); do \
+		echo "Testing: $$test"; \
+		valgrind --leak-check=full --error-exitcode=1 $$test; \
+	done
+
+# Coverage report (requires gcov)
+coverage: CFLAGS += --coverage -g
+coverage: LDFLAGS += --coverage
+coverage: clean test
+	@echo "Generating coverage report..."
+	@gcov $(SRC_DIR)/*.c
+	@echo "Coverage files: *.gcov"
 # Valgrind memory check
 valgrind: debug
 	@if [ -f $(EXAMPLE_DIR)/firmware.hex ]; then \
