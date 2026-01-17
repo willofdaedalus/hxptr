@@ -8,6 +8,8 @@ typedef enum {
 	HX_ERR_INV_RECORD = -1,
 	HX_ERR_NULL = -2,
 	HX_ERR_NO_RECORD = -3,
+	HX_ERR_UKN_TYPE = -4,
+	HX_ERR_BAD_CHKSM = -5,
 } HxptrResult_t;
 
 typedef enum {
@@ -23,8 +25,10 @@ typedef struct {
 	uint8_t byte_count;
 	uint16_t address;
 	IHexRecordType_t type;
-	uint8_t *bytes;
+	uint8_t bytes[256];
 	uint8_t checksum;
 } hxptr_record_t;
+
+HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
 
 #endif

@@ -1,4 +1,3 @@
-#include "hxptr.h"
 #include "hxptr_record.h"
 #include <ctype.h>
 #include <string.h>
@@ -12,11 +11,15 @@ static inline uint8_t hex_char_to_nibble(const char c)
 {
 	if (c >= '0' && c <= '9') {
 		return c - '0';
-	} else if (c >= 'a' && c <= 'f') {
+	}
+	if (c >= 'a' && c <= 'f') {
 		return c - 'a' + 10;
-	} else if (c >= 'A' && c <= 'F') {
+	}
+	if (c >= 'A' && c <= 'F') {
 		return c - 'A' + 10;
 	}
+
+	return 0;
 }
 
 static inline uint8_t hex_to_byte(const char *str)
@@ -54,7 +57,6 @@ ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count)
 	// count hex characters (should be even)
 	const char *temp = line;
 
-
 	hex_chars = 0;
 	while (*temp && *temp != '\n' && *temp != '\r') {
 		if (!isxdigit(*temp)) {
@@ -90,17 +92,50 @@ ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count)
 	return HX_OK;
 }
 
-static HxptrResult_t validate_hex_bytes(uint8_t *data, uint8_t len)
+static inline HxptrResult_t validate_checksum(uint8_t *data, size_t data_len)
 {
+	uint8_t sum = 0;
+
 	if (!data) {
 		return HX_ERR_NULL;
 	}
+
+	for (size_t i = 0; i < data_len; i++) {
+		sum += data[i];
+	}
+
+	return (sum == 0) ? HX_OK : HX_ERR_BAD_CHKSM;
+}
+
+static HxptrResult_t validate_hex_bytes(uint8_t *data, size_t data_len)
+{
+	uint8_t bc, type;
+	uint16_t sum;
+	size_t i;
+
+	if (!data) {
+		return HX_ERR_NULL;
+	}
+
+	bc = data[0];
+	type = data[3];
+
+	// accounting for 1byte bc, 2byte addr, 1byte type and 1byte checksum
+	// if remainder is not bc then it's over or under count
+	if ((data_len - 5) != bc) {
+		return HX_ERR_INV_RECORD;
+	}
+	if (type > 0x05) {
+		return HX_ERR_UKN_TYPE;
+	}
+
+	return validate_checksum(data, data_len);
 }
 
 HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 {
 	uint8_t bytes[MAX_BYTE_COUNT] = {0};
-	uint8_t count;
+	size_t count;
 	HxptrResult_t res;
 
 
@@ -116,4 +151,15 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	if (res != HX_OK) {
 		return res;
 	}
+
+	// actual record filling happens here
+	out_record->byte_count = bytes[0];
+	out_record->address = (uint16_t) ((bytes[1] << 8) | bytes[2]);
+
+	out_record->type = bytes[3];
+	memcpy(out_record->bytes, &bytes[4], out_record->byte_count);
+
+	out_record->checksum = line[count - 1];
+
+	return HX_OK;
 }
