@@ -31,12 +31,15 @@ int main(int ac, char **av)
 	while (fgets(buf, sizeof(buf), f) != NULL) {
 		res = hxptr_hex_to_record(buf, &record);
 		if (res != HX_OK) {
+			printf("%d\n", res);
 			goto cleanup;
 		}
 
 		record.line_num = line_num;
 		res = hxptr_append_record(hx, &record);
 		if (res != HX_OK) {
+			// hxptr_handle_err(res);
+			printf("%d\n", res);
 			goto cleanup;
 		}
 		line_num++;
@@ -46,6 +49,8 @@ int main(int ac, char **av)
 	if (res != HX_OK) {
 		goto cleanup;
 	}
+
+	// printf("Loaded: %d bytes\n", hx->total_bytes);
 
 	hxptr_free(hx);
 	fclose(f);

@@ -78,7 +78,7 @@ static int sm_comp(const void *a, const void *b)
 	}
 }
 
-void sm_print_entries(const sparse_memory_t *mem)
+static void sm_print_entries(const sparse_memory_t *mem)
 {
 	if (!mem)
 		return;
@@ -87,15 +87,61 @@ void sm_print_entries(const sparse_memory_t *mem)
 		memory_entry_t *entry = &mem->entries[i];
 
 		// print address in hex
-		printf("a: 0x%08x ", entry->address);
+		printf("[0x%08X] ", entry->address);
 
-		printf("D: ");
 		// print bytes separated by spaces
 		for (uint8_t j = 0; j < entry->byte_count; ++j) {
-			printf("%02x ", entry->bytes[j]);
+			printf("%02X ", entry->bytes[j]);
 		}
 
 		printf("\n");
+	}
+}
+
+void detect_overlaps(sparse_memory_t *mem)
+{
+	memory_entry_t *right;
+	memory_entry_t *left;
+	uint32_t left_end, over_start, over_end, over_size;
+
+	if (!mem->finalized) {
+		fprintf(stderr,
+			"error: call finalize() before detecting overlaps\n");
+		return;
+	}
+
+	for (size_t i = 0; i < mem->count - 1; i++) {
+		left = &mem->entries[i];
+		right = &mem->entries[i + 1];
+
+		left_end = left->address + left->byte_count - 1;
+
+		// check if right starts before left ends
+		if (right->address <= left_end) {
+			// overlap detected!
+			over_start = right->address;
+			over_end = (left_end <
+				    right->address + right->byte_count - 1)
+					   ? left_end
+					   : right->address +
+						     right->byte_count - 1;
+			over_size = over_end - over_start + 1;
+
+			printf("overlap detected:\n");
+			printf(" range 1: 0x%08x-0x%08x (line %u)\n",
+			       left->address,
+			       left_end,
+			       left->line_num);
+			printf("  range 2: 0x%08x-0x%08x (line %u)\n",
+			       right->address,
+			       right->address + right->byte_count - 1,
+			       right->line_num);
+			printf("  overlap: 0x%08x-0x%08x (%u bytes)\n",
+			       over_start,
+			       over_end,
+			       over_size);
+			printf("\n");
+		}
 	}
 }
 
@@ -106,9 +152,10 @@ HxptrResult_t sm_finalize(sparse_memory_t *mem)
 	}
 
 	qsort(mem->entries, mem->count, sizeof(memory_entry_t), sm_comp);
-	sm_print_entries(mem);
-
 	mem->finalized = 1;
+	detect_overlaps(mem);
+	// sm_print_entries(mem);
+
 
 	return HX_OK;
 }
