@@ -1,7 +1,10 @@
 #ifndef HXPTR_H
 #define HXPTR_H
 
-#include "hxptr_memory.h"
+#include <stdint.h>
+
+#define ESA_FACTOR 16
+#define ADDR_COUNT 2
 
 typedef enum {
 	HX_OK = 0,
@@ -10,6 +13,8 @@ typedef enum {
 	HX_ERR_NO_RECORD = -3,
 	HX_ERR_UKN_TYPE = -4,
 	HX_ERR_BAD_CHKSM = -5,
+	HX_ERR_BAD_APPEND = -6,
+	HX_ERR_BAD_FILE = -7,
 } HxptrResult_t;
 
 typedef enum {
@@ -20,6 +25,20 @@ typedef enum {
 	IHEX_ELA = 0x4,	 // extended linear address
 	IHEX_SLA = 0x5	 // start linear address
 } IHexRecordType_t;
+
+typedef struct {
+	uint32_t address;   // contains extended hi and lo bytes
+	uint8_t byte_count; // number of bytes to help in fast rendering
+	uint8_t *bytes;	    // actual data
+	uint8_t checksum;   // checksum
+} memory_entry_t;
+
+typedef struct {
+	uint32_t count;
+	uint32_t cap;
+	memory_entry_t *entries;
+	uint8_t finalized;
+} sparse_memory_t;
 
 typedef struct {
 	uint16_t address;
@@ -33,12 +52,12 @@ typedef struct {
 	uint32_t total_records;
 	uint32_t total_bytes;
 
-	uint16_t linear_addr;
-	uint16_t segment_addr;
+	uint32_t segment;
+	uint32_t linear;
 
 	sparse_memory_t *memory;
-
 	uint8_t eof;
+	uint8_t cur_type;
 } hxptr_t;
 
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);

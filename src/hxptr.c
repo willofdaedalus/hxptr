@@ -1,7 +1,27 @@
 #include "hxptr.h"
 #include "hxptr_memory.h"
 #include "hxptr_record.h"
+#include <stdlib.h>
 
+hxptr_t *hxptr_init(void)
+{
+	hxptr_t *hx;
+
+	hx = calloc(1, sizeof(hxptr_t));
+	if (!hx) {
+		return NULL;
+	}
+
+	hx->memory = sm_init();
+	if (!hx->memory) {
+		free(hx);
+		return NULL;
+	}
+
+	return hx;
+}
+
+// NOTE; have all hxptr_* functions pass a ctx; this one doesn't
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record)
 {
 	if (!line || !record) {
@@ -13,31 +33,83 @@ HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record)
 
 HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 {
-	// check type of record
-	// update internal hi address
-	// push this to the sm_handlers
+	uint32_t addr;
+	HxptrResult_t res;
 
-	if (!record) {
+	if (!ctx || !record) {
 		return HX_ERR_NULL;
+	}
+
+	// no records after eof
+	if (ctx->eof && record->type != IHEX_EOF) {
+		return HX_ERR_BAD_FILE;
 	}
 
 	switch (record->type) {
 	case IHEX_DATA:
+		if (ctx->cur_type == IHEX_ESA) {
+			addr = ((uint32_t) ctx->segment << 4) + record->address;
+		} else if (ctx->cur_type == IHEX_ELA) {
+			addr = ((uint32_t) ctx->linear << 16) | record->address;
+		} else {
+			addr = record->address;
+		}
+
+		res = sm_append_record(ctx->memory, record, addr);
+		if (res != HX_OK) {
+			return res;
+		}
+
+		ctx->total_bytes += record->byte_count;
+		ctx->total_records += 1;
 		break;
 
 	case IHEX_EOF:
+		// we already hit eof! no more!
+		if (ctx->eof) {
+			return HX_ERR_BAD_FILE;
+		}
+
+		// eof MUST fit the spec
+		if (record->byte_count != 0 || record->address != 0x0000) {
+			return HX_ERR_INV_RECORD;
+		}
+
+		ctx->eof = 1;
 		break;
 
 	case IHEX_ESA:
-		break;
+		if (record->byte_count != ADDR_COUNT) {
+			return HX_ERR_INV_RECORD;
+		}
+		ctx->segment =
+			(uint16_t) ((record->bytes[0] << 8) | record->bytes[1]);
+		// ctx->segment = ((uint16_t) record->bytes[0] << 8) |
+		// 	       (uint16_t) record->bytes[1];
 
-	case IHEX_SSA:
+		ctx->linear = 0;
+		ctx->cur_type = IHEX_ESA;
 		break;
 
 	case IHEX_ELA:
+		if (record->byte_count != ADDR_COUNT) {
+			return HX_ERR_INV_RECORD;
+		}
+
+		ctx->linear = ((uint16_t) record->bytes[0] << 8) |
+			      (uint16_t) record->bytes[1];
+
+		ctx->segment = 0;
+		ctx->cur_type = IHEX_ELA;
 		break;
 
+	case IHEX_SSA:
 	case IHEX_SLA:
 		break;
+
+	default:
+		return HX_ERR_INV_RECORD;
 	}
+
+	return HX_OK;
 }
