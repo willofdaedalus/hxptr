@@ -1,5 +1,6 @@
 #include "hxptr_record.h"
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 
 // take input as str
@@ -11,19 +12,18 @@ static inline uint8_t hex_char_to_nibble(const char c)
 {
 	if (c >= '0' && c <= '9') {
 		return c - '0';
-	}
-	if (c >= 'a' && c <= 'f') {
+	} else if (c >= 'a' && c <= 'f') {
 		return c - 'a' + 10;
-	}
-	if (c >= 'A' && c <= 'F') {
+	} else if (c >= 'A' && c <= 'F') {
 		return c - 'A' + 10;
 	}
 
-	return 0;
+	return 17;
 }
 
 static inline uint8_t hex_to_byte(const char *str)
 {
+	// check return on these function calls
 	uint8_t hi = hex_char_to_nibble(str[0]);
 	uint8_t lo = hex_char_to_nibble(str[1]);
 
@@ -125,6 +125,7 @@ static HxptrResult_t validate_hex_bytes(uint8_t *data, size_t data_len)
 	if ((data_len - 5) != bc) {
 		return HX_ERR_INV_RECORD;
 	}
+
 	if (type > 0x05) {
 		return HX_ERR_UKN_TYPE;
 	}

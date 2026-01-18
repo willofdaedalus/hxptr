@@ -1,7 +1,7 @@
 #ifndef HXPTR_H
 #define HXPTR_H
 
-#include <stdint.h>
+#include "hxptr_memory.h"
 
 typedef enum {
 	HX_OK = 0,
@@ -22,13 +22,26 @@ typedef enum {
 } IHexRecordType_t;
 
 typedef struct {
-	uint8_t byte_count;
 	uint16_t address;
-	IHexRecordType_t type;
+	uint8_t byte_count;
 	uint8_t bytes[256];
 	uint8_t checksum;
+	IHexRecordType_t type;
 } hxptr_record_t;
 
+typedef struct {
+	uint32_t total_records;
+	uint32_t total_bytes;
+
+	uint16_t linear_addr;
+	uint16_t segment_addr;
+
+	sparse_memory_t *memory;
+
+	uint8_t eof;
+} hxptr_t;
+
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
+void record_to_str(hxptr_record_t *record);
 
 #endif
