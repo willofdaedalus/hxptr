@@ -21,6 +21,16 @@ hxptr_t *hxptr_init(void)
 	return hx;
 }
 
+void hxptr_free(hxptr_t *hx)
+{
+	if (!hx) {
+		return;
+	}
+
+	sm_free(hx->memory);
+	free(hx);
+}
+
 // NOTE; have all hxptr_* functions pass a ctx; this one doesn't
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record)
 {
@@ -41,7 +51,7 @@ HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 	}
 
 	// no records after eof
-	if (ctx->eof && record->type != IHEX_EOF) {
+	if (ctx->eof) {
 		return HX_ERR_BAD_FILE;
 	}
 
@@ -104,7 +114,26 @@ HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 		break;
 
 	case IHEX_SSA:
+		if (record->byte_count != START_COUNT || record->address != 0) {
+			return HX_ERR_INV_RECORD;
+		}
+		ctx->cs =
+			(uint16_t) ((record->bytes[0] << 8) | record->bytes[1]);
+		ctx->ip =
+			(uint16_t) ((record->bytes[2] << 8) | record->bytes[3]);
+		ctx->cur_type = IHEX_SSA;
+		break;
+
 	case IHEX_SLA:
+		if (record->byte_count != START_COUNT || record->address != 0) {
+			return HX_ERR_INV_RECORD;
+		}
+
+		ctx->cs =
+			(uint16_t) ((record->bytes[0] << 8) | record->bytes[1]);
+		ctx->ip =
+			(uint16_t) ((record->bytes[2] << 8) | record->bytes[3]);
+		ctx->cur_type = IHEX_SLA;
 		break;
 
 	default:

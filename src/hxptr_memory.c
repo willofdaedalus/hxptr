@@ -40,6 +40,7 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 	entry = &mem->entries[mem->count];
 	// make sure this address is never more than the length of the mcu
 	// profile
+	entry->line_num = record->line_num;
 	entry->address = base_addr;
 	entry->checksum = record->checksum;
 	entry->bytes = malloc(record->byte_count * sizeof(uint8_t));
@@ -50,6 +51,40 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 
 	mem->count++;
 	mem->finalized = 0;
+
+	return HX_OK;
+}
+
+static int sm_comp(const void *a, const void *b)
+{
+	memory_entry_t *entry_a = (memory_entry_t *) a;
+	memory_entry_t *entry_b = (memory_entry_t *) b;
+
+	if (entry_a->address < entry_b->address) {
+		return -1;
+	}
+	if (entry_a->address > entry_b->address) {
+		return 1;
+	}
+
+	// tie-breaker; compare by the line_num as most recent should always win
+	if (entry_a->line_num < entry_b->address) {
+		return -1;
+	}
+	if (entry_a->line_num > entry_b->address) {
+		return 1;
+	}
+}
+
+HxptrResult_t sm_finalize(sparse_memory_t *mem)
+{
+	if (!mem) {
+		return HX_ERR_NULL;
+	}
+
+	qsort(mem->entries, mem->count, sizeof(memory_entry_t), sm_comp);
+
+	mem->finalized = 1;
 
 	return HX_OK;
 }

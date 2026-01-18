@@ -5,6 +5,7 @@
 
 #define ESA_FACTOR 16
 #define ADDR_COUNT 2
+#define START_COUNT 4
 
 typedef enum {
 	HX_OK = 0,
@@ -28,6 +29,7 @@ typedef enum {
 
 typedef struct {
 	uint32_t address;   // contains extended hi and lo bytes
+	uint32_t line_num;  // line number for conflict resolutions
 	uint8_t byte_count; // number of bytes to help in fast rendering
 	uint8_t *bytes;	    // actual data
 	uint8_t checksum;   // checksum
@@ -41,6 +43,7 @@ typedef struct {
 } sparse_memory_t;
 
 typedef struct {
+	uint32_t line_num;
 	uint16_t address;
 	uint8_t byte_count;
 	uint8_t bytes[256];
@@ -54,13 +57,18 @@ typedef struct {
 
 	uint32_t segment;
 	uint32_t linear;
+	uint32_t cs;
+	uint32_t ip;
 
 	sparse_memory_t *memory;
 	uint8_t eof;
 	uint8_t cur_type;
 } hxptr_t;
 
+hxptr_t *hxptr_init(void);
+void hxptr_free(hxptr_t *hx);
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
+HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record);
 void record_to_str(hxptr_record_t *record);
 
 #endif
