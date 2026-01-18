@@ -11,5 +11,6 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 			       hxptr_record_t *record,
 			       uint32_t addr_prefix);
 void sm_free(sparse_memory_t *mem);
+HxptrResult_t sm_finalize(sparse_memory_t *mem);
 
 #endif

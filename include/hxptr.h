@@ -70,5 +70,6 @@ void hxptr_free(hxptr_t *hx);
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
 HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record);
 void record_to_str(hxptr_record_t *record);
+HxptrResult_t hxptr_sm_finalize(hxptr_t *hx);
 
 #endif

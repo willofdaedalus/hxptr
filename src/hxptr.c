@@ -31,6 +31,15 @@ void hxptr_free(hxptr_t *hx)
 	free(hx);
 }
 
+HxptrResult_t hxptr_sm_finalize(hxptr_t *hx)
+{
+	if (!hx) {
+		return HX_ERR_NULL;
+	}
+
+	return sm_finalize(hx->memory);
+}
+
 // NOTE; have all hxptr_* functions pass a ctx; this one doesn't
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record)
 {

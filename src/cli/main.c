@@ -1,18 +1,59 @@
 #include "hxptr.h"
 #include <stdio.h>
 
-int main(void)
+int main(int ac, char **av)
 {
+	char buf[512];
+	FILE *f;
+	hxptr_t *hx;
 	HxptrResult_t res;
 	hxptr_record_t record = {0};
-	char *hex = ":0b0010006164647265737320676170a7";
+	uint32_t line_num = 1;
 
-	if ((res = hxptr_hex_to_record(hex, &record)) != HX_OK) {
-		printf("%d\n", res);
+	if (ac < 2) {
+		fprintf(stderr, "hxptr: hxptr <file.hex>\n");
 		return -1;
 	}
 
-	record_to_str(&record);
+	f = fopen(*++av, "r");
+	if (!f) {
+		perror("failed to open file");
+		return -1;
+	}
+
+	hx = hxptr_init();
+	if (!hx) {
+		fprintf(stderr, "hxptr: error initializing hxptr ctx\n");
+		fclose(f);
+		return -1;
+	}
+
+	while (fgets(buf, sizeof(buf), f) != NULL) {
+		res = hxptr_hex_to_record(buf, &record);
+		if (res != HX_OK) {
+			goto cleanup;
+		}
+
+		record.line_num = line_num;
+		res = hxptr_append_record(hx, &record);
+		if (res != HX_OK) {
+			goto cleanup;
+		}
+		line_num++;
+	}
+
+	res = hxptr_sm_finalize(hx);
+	if (res != HX_OK) {
+		goto cleanup;
+	}
+
+	hxptr_free(hx);
+	fclose(f);
 
 	return 0;
+
+cleanup:
+	hxptr_free(hx);
+	fclose(f);
+	return -1;
 }

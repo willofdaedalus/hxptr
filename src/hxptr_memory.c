@@ -1,4 +1,5 @@
 #include "hxptr_memory.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,6 +41,7 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 	entry = &mem->entries[mem->count];
 	// make sure this address is never more than the length of the mcu
 	// profile
+	entry->byte_count = record->byte_count;
 	entry->line_num = record->line_num;
 	entry->address = base_addr;
 	entry->checksum = record->checksum;
@@ -76,6 +78,27 @@ static int sm_comp(const void *a, const void *b)
 	}
 }
 
+void sm_print_entries(const sparse_memory_t *mem)
+{
+	if (!mem)
+		return;
+
+	for (size_t i = 0; i < mem->count; ++i) {
+		memory_entry_t *entry = &mem->entries[i];
+
+		// print address in hex
+		printf("a: 0x%08x ", entry->address);
+
+		printf("D: ");
+		// print bytes separated by spaces
+		for (uint8_t j = 0; j < entry->byte_count; ++j) {
+			printf("%02x ", entry->bytes[j]);
+		}
+
+		printf("\n");
+	}
+}
+
 HxptrResult_t sm_finalize(sparse_memory_t *mem)
 {
 	if (!mem) {
@@ -83,6 +106,7 @@ HxptrResult_t sm_finalize(sparse_memory_t *mem)
 	}
 
 	qsort(mem->entries, mem->count, sizeof(memory_entry_t), sm_comp);
+	sm_print_entries(mem);
 
 	mem->finalized = 1;
 
