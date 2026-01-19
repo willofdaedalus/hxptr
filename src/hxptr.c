@@ -31,13 +31,43 @@ void hxptr_free(hxptr_t *hx)
 	free(hx);
 }
 
+static int sm_comp(const void *a, const void *b)
+{
+	memory_entry_t *entry_a = (memory_entry_t *) a;
+	memory_entry_t *entry_b = (memory_entry_t *) b;
+
+	if (entry_a->address < entry_b->address) {
+		return -1;
+	}
+	if (entry_a->address > entry_b->address) {
+		return 1;
+	}
+
+	// tie-breaker; compare by the line_num as most recent should always win
+	if (entry_a->line_num < entry_b->address) {
+		return -1;
+	}
+	if (entry_a->line_num > entry_b->address) {
+		return 1;
+	}
+}
+
+
 HxptrResult_t hxptr_sm_finalize(hxptr_t *hx)
 {
 	if (!hx) {
 		return HX_ERR_NULL;
 	}
 
-	return sm_finalize(hx->memory);
+	qsort(hx->memory->entries,
+	      hx->memory->count,
+	      sizeof(memory_entry_t),
+	      sm_comp);
+
+	hx->memory->finalized = 1;
+
+	// more should be done here
+	return sm_detect_overlaps(hx);
 }
 
 // NOTE; have all hxptr_* functions pass a ctx; this one doesn't

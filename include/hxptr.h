@@ -19,6 +19,12 @@ typedef enum {
 } HxptrResult_t;
 
 typedef enum {
+	LEVEL_INFO,
+	LEVEL_ERROR,
+	LEVEL_WARN,
+} IssueLevel_t;
+
+typedef enum {
 	IHEX_DATA = 0x0, // data
 	IHEX_EOF = 0x1,	 // end of file
 	IHEX_ESA = 0x2,	 // extended segment address
@@ -26,6 +32,13 @@ typedef enum {
 	IHEX_ELA = 0x4,	 // extended linear address
 	IHEX_SLA = 0x5	 // start linear address
 } IHexRecordType_t;
+
+typedef struct {
+	uint32_t line_primary; // the line that triggered it
+	uint32_t left_addr;    // where in memory it happened
+	uint32_t right_addr;   // where in memory it happened
+	IssueLevel_t level;
+} diagnostic_t;
 
 typedef struct {
 	uint32_t address;   // contains extended hi and lo bytes
@@ -61,6 +74,9 @@ typedef struct {
 	uint32_t ip;
 
 	sparse_memory_t *memory;
+	diagnostic_t *diagnostics;
+
+	uint32_t diags_count;
 	uint8_t eof;
 	uint8_t cur_type;
 } hxptr_t;
