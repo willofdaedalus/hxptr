@@ -39,10 +39,12 @@ typedef enum {
 
 typedef struct {
 	IssueLevel_t level;
-	uint32_t overlap_start;	    // Where overlap begins
-	uint32_t overlap_end;	    // Where overlap ends
-	uint32_t first_write_line;  // Line that wrote first
-	uint32_t second_write_line; // Line that overwrote
+	uint32_t overlap_start;
+	uint32_t overlap_end;
+	uint32_t first_write_line;
+	uint32_t second_write_line;
+	uint8_t *first_data;  // malloc'd copy of first write
+	uint8_t *second_data; // malloc'd copy of second write
 } diagnostic_t;
 
 typedef struct {

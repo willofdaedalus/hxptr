@@ -89,8 +89,7 @@ void hxptr_display_overlaps(hxptr_t *hx)
 	if (hx->reports->count == 0) {
 		printf("no overlaps detected!\n\n");
 	}
-
-	diag_print(hx);
+	diag_print_with_highlight(hx);
 }
 
 // NOTE; have all hxptr_* functions pass a ctx; this one doesn't

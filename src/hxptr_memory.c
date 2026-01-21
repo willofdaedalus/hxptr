@@ -110,16 +110,47 @@ HxptrResult_t sm_detect_overlaps(hxptr_t *ctx)
 				overlap_end = second_end;
 			}
 
+			uint32_t overlap_size = overlap_end - overlap_start + 1;
+
+			// allocate memory for overlap bytes
+			uint8_t *first_data = malloc(overlap_size);
+			uint8_t *second_data = malloc(overlap_size);
+
+			if (!first_data || !second_data) {
+				free(first_data);
+				free(second_data);
+				return HX_ERR_BAD_ALLOC;
+			}
+
+			// extract overlapping bytes from first range
+			uint32_t offset_in_first =
+				overlap_start - first->address;
+			memcpy(first_data,
+			       first->bytes + offset_in_first,
+			       overlap_size);
+
+			// extract overlapping bytes from second range
+			uint32_t offset_in_second =
+				overlap_start - second->address;
+			memcpy(second_data,
+			       second->bytes + offset_in_second,
+			       overlap_size);
+
 			// create diagnostic
 			diagnostic_t diag = {
 				.level = LEVEL_WARN,
 				.overlap_start = overlap_start,
 				.overlap_end = overlap_end,
 				.first_write_line = first->line_num,
-				.second_write_line = second->line_num};
+				.second_write_line = second->line_num,
+				.first_data = first_data,
+				.second_data = second_data};
 
 			HxptrResult_t res = diag_append(ctx, &diag);
 			if (res != HX_OK) {
+				// clean up on failure
+				free(first_data);
+				free(second_data);
 				return res;
 			}
 		}
