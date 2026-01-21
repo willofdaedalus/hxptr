@@ -15,6 +15,7 @@ sparse_memory_t *sm_init(void)
 	mem->cap = MEM_CAPACITY;
 	mem->entries = malloc(mem->cap * sizeof(memory_entry_t));
 	if (!mem->entries) {
+		free(mem);
 		return NULL;
 	}
 
