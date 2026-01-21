@@ -89,6 +89,10 @@ void hxptr_display_overlaps(hxptr_t *hx)
 	if (hx->reports->count == 0) {
 		printf("no overlaps detected!\n\n");
 	}
+
+	// NOTE
+	// store the addresses and the count and the index it starts at for tui
+	// integration in the future
 	diag_print_with_highlight(hx);
 }
 
