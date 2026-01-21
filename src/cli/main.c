@@ -50,6 +50,10 @@ int main(int ac, char **av)
 		goto cleanup;
 	}
 
+	if (hx->reports->count > 0) {
+		hxptr_display_overlaps(hx);
+	}
+
 	// printf("Loaded: %d bytes\n", hx->total_bytes);
 
 	hxptr_free(hx);

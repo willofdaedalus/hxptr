@@ -16,13 +16,17 @@ typedef enum {
 	HX_ERR_BAD_CHKSM = -5,
 	HX_ERR_BAD_APPEND = -6,
 	HX_ERR_BAD_FILE = -7,
+	HX_ERR_BAD_ALLOC = -8,
+	HX_ERR_NOT_FINALIZED = -9,
 } HxptrResult_t;
 
 typedef enum {
 	LEVEL_INFO,
-	LEVEL_ERROR,
 	LEVEL_WARN,
+	LEVEL_ERROR,
+	LEVEL_FATAL,
 } IssueLevel_t;
+
 
 typedef enum {
 	IHEX_DATA = 0x0, // data
@@ -34,11 +38,18 @@ typedef enum {
 } IHexRecordType_t;
 
 typedef struct {
-	uint32_t line_primary; // the line that triggered it
-	uint32_t left_addr;    // where in memory it happened
-	uint32_t right_addr;   // where in memory it happened
 	IssueLevel_t level;
+	uint32_t overlap_start;	    // Where overlap begins
+	uint32_t overlap_end;	    // Where overlap ends
+	uint32_t first_write_line;  // Line that wrote first
+	uint32_t second_write_line; // Line that overwrote
 } diagnostic_t;
+
+typedef struct {
+	diagnostic_t *entries;
+	uint32_t count;
+	uint32_t capacity;
+} reports_t;
 
 typedef struct {
 	uint32_t address;   // contains extended hi and lo bytes
@@ -74,7 +85,7 @@ typedef struct {
 	uint32_t ip;
 
 	sparse_memory_t *memory;
-	diagnostic_t *diagnostics;
+	reports_t *reports;
 
 	uint32_t diags_count;
 	uint8_t eof;
@@ -87,5 +98,6 @@ HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
 HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record);
 void record_to_str(hxptr_record_t *record);
 HxptrResult_t hxptr_sm_finalize(hxptr_t *hx);
+void hxptr_display_overlaps(hxptr_t *hx);
 
 #endif

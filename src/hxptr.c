@@ -1,6 +1,8 @@
 #include "hxptr.h"
+#include "hxptr_diagnostics.h"
 #include "hxptr_memory.h"
 #include "hxptr_record.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 hxptr_t *hxptr_init(void)
@@ -18,6 +20,13 @@ hxptr_t *hxptr_init(void)
 		return NULL;
 	}
 
+	hx->reports = reports_init();
+	if (!hx->reports) {
+		free(hx->memory);
+		free(hx);
+		return NULL;
+	}
+
 	return hx;
 }
 
@@ -28,6 +37,7 @@ void hxptr_free(hxptr_t *hx)
 	}
 
 	sm_free(hx->memory);
+	reports_free(hx->reports);
 	free(hx);
 }
 
@@ -68,6 +78,19 @@ HxptrResult_t hxptr_sm_finalize(hxptr_t *hx)
 
 	// more should be done here
 	return sm_detect_overlaps(hx);
+}
+
+void hxptr_display_overlaps(hxptr_t *hx)
+{
+	if (!hx) {
+		return;
+	}
+
+	if (hx->reports->count == 0) {
+		printf("no overlaps detected!\n\n");
+	}
+
+	diag_print(hx);
 }
 
 // NOTE; have all hxptr_* functions pass a ctx; this one doesn't

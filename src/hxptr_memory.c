@@ -1,4 +1,5 @@
 #include "hxptr_memory.h"
+#include "hxptr_diagnostics.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,60 +79,49 @@ static void sm_print_entries(const sparse_memory_t *mem)
 	}
 }
 
-HxptrResult_t sm_detect_overlaps(hxptr_t *hx)
+HxptrResult_t sm_detect_overlaps(hxptr_t *ctx)
 {
-	diagnostic_t diag = {0};
-	memory_entry_t *right;
-	memory_entry_t *left;
-	uint32_t left_end, over_start, over_end, over_size;
-
-	if (!hx->diagnostics) {
+	if (!ctx || !ctx->memory || !ctx->reports) {
 		return HX_ERR_NULL;
 	}
 
-	if (!hx->memory->finalized) {
+	if (!ctx->memory->finalized) {
 		fprintf(stderr,
-			"error: call finalize() before detecting overlaps\n");
-		return HX_ERR_NULL;
+			"Error: Call finalize() before detecting overlaps\n");
+		return HX_ERR_NOT_FINALIZED;
 	}
 
-	for (size_t i = 0; i < hx->memory->count - 1; i++) {
-		left = &hx->memory->entries[i];
-		right = &hx->memory->entries[i + 1];
+	for (size_t i = 0; i < ctx->memory->count - 1; i++) {
+		memory_entry_t *first = &ctx->memory->entries[i];
+		memory_entry_t *second = &ctx->memory->entries[i + 1];
 
-		left_end = left->address + left->byte_count - 1;
+		uint32_t first_end = first->address + first->byte_count - 1;
 
-		// check if right starts before left ends
-		if (right->address <= left_end) {
-			// overlap detected!
-			over_start = right->address;
-			over_end = (left_end <
-				    right->address + right->byte_count - 1)
-					   ? left_end
-					   : right->address +
-						     right->byte_count - 1;
-			over_size = over_end - over_start + 1;
+		// check if second range starts before first ends
+		if (second->address <= first_end) {
+			// calculate overlap boundaries
+			uint32_t overlap_start = second->address;
+			uint32_t overlap_end = first_end;
 
-			diag = (diagnostic_t) {.line_primary = left->line_num,
-					       .left_addr = left->address,
-					       .right_addr = right->address,
-					       .level = LEVEL_WARN};
+			// if second range ends before first, use that end
+			uint32_t second_end =
+				second->address + second->byte_count - 1;
+			if (second_end < first_end) {
+				overlap_end = second_end;
+			}
 
+			// create diagnostic
+			diagnostic_t diag = {
+				.level = LEVEL_WARN,
+				.overlap_start = overlap_start,
+				.overlap_end = overlap_end,
+				.first_write_line = first->line_num,
+				.second_write_line = second->line_num};
 
-			// printf("overlap detected:\n");
-			// printf(" range 1: 0x%08x-0x%08x (line %u)\n",
-			//        left->address,
-			//        left_end,
-			//        left->line_num);
-			// printf("  range 2: 0x%08x-0x%08x (line %u)\n",
-			//        right->address,
-			//        right->address + right->byte_count - 1,
-			//        right->line_num);
-			// printf("  overlap: 0x%08x-0x%08x (%u bytes)\n",
-			//        over_start,
-			//        over_end,
-			//        over_size);
-			// printf("\n");
+			HxptrResult_t res = diag_append(ctx, &diag);
+			if (res != HX_OK) {
+				return res;
+			}
 		}
 	}
 
