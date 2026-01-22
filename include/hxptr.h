@@ -38,22 +38,6 @@ typedef enum {
 } IHexRecordType_t;
 
 typedef struct {
-	IssueLevel_t level;
-	uint32_t overlap_start;
-	uint32_t overlap_end;
-	uint32_t first_write_line;
-	uint32_t second_write_line;
-	uint8_t *first_data;  // malloc'd copy of first write
-	uint8_t *second_data; // malloc'd copy of second write
-} diagnostic_t;
-
-typedef struct {
-	diagnostic_t *entries;
-	uint32_t count;
-	uint32_t capacity;
-} reports_t;
-
-typedef struct {
 	uint32_t address;   // contains extended hi and lo bytes
 	uint32_t line_num;  // line number for conflict resolutions
 	uint8_t byte_count; // number of bytes to help in fast rendering
@@ -67,6 +51,21 @@ typedef struct {
 	memory_entry_t *entries;
 	uint8_t finalized;
 } sparse_memory_t;
+
+typedef struct {
+	IssueLevel_t level;
+	uint32_t first_range_idx;  // Index into ctx->memory->entries
+	uint32_t second_range_idx; // Index into ctx->memory->entries
+	uint32_t overlap_start;	   // Where overlap begins
+	uint32_t overlap_size;	   // Number of overlapping bytes
+} diagnostic_t;
+
+typedef struct {
+	diagnostic_t *entries;
+	uint32_t count;
+	uint32_t capacity;
+} reports_t;
+
 
 typedef struct {
 	uint32_t line_num;

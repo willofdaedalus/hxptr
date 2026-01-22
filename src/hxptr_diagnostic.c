@@ -61,94 +61,10 @@ void reports_free(reports_t *reports)
 		return;
 	}
 
-	// Free each diagnostic's data arrays
-	for (size_t i = 0; i < reports->count; i++) {
-		free(reports->entries[i].first_data);
-		free(reports->entries[i].second_data);
-	}
-
-	// Free the entries array
 	free(reports->entries);
-
-	// Free the reports struct
 	free(reports);
 }
 
-void diag_print_compact(hxptr_t *ctx)
-{
-	if (!ctx || !ctx->reports || ctx->reports->count == 0) {
-		return;
-	}
-
-	printf("\n%zu overlap(s) detected:\n\n", ctx->reports->count);
-
-	for (size_t i = 0; i < ctx->reports->count; i++) {
-		diagnostic_t *d = &ctx->reports->entries[i];
-		uint32_t size = d->overlap_end - d->overlap_start + 1;
-
-		printf("  [%zu] 0x%08x-0x%08x (%u bytes) │ l%u → l%u\n",
-		       i + 1,
-		       d->overlap_start,
-		       d->overlap_end,
-		       size,
-		       d->first_write_line,
-		       d->second_write_line);
-	}
-	printf("\n");
-}
-
-void diag_print(hxptr_t *ctx)
-{
-	if (!ctx || !ctx->reports) {
-		return;
-	}
-
-	if (ctx->reports->count == 0) {
-		printf("✓ No overlaps detected\n");
-		return;
-	}
-
-	printf("\n");
-	printf("===  OVERLAPS DETECTED: %zu ===\n", ctx->reports->count);
-	printf("\n");
-
-	for (size_t i = 0; i < ctx->reports->count; i++) {
-		diagnostic_t *d = &ctx->reports->entries[i];
-		uint32_t overlap_size = d->overlap_end - d->overlap_start + 1;
-
-		printf("overlap #%zu:\n", i + 1);
-		printf("  address range:  0x%08x - 0x%08x (%u bytes)\n",
-		       d->overlap_start,
-		       d->overlap_end,
-		       overlap_size);
-		printf("  first write:    line %u\n", d->first_write_line);
-		printf("  overwritten by: line %u\n", d->second_write_line);
-
-		// optional: show severity
-		const char *level_str;
-		switch (d->level) {
-		case LEVEL_INFO:
-			level_str = "INFO";
-			break;
-		case LEVEL_WARN:
-			level_str = "WARNING";
-			break;
-		case LEVEL_ERROR:
-			level_str = "ERROR";
-			break;
-		case LEVEL_FATAL:
-			level_str = "FATAL";
-			break;
-		default:
-			level_str = "?";
-			break;
-		}
-		printf("  severity:       %s\n", level_str);
-		printf("\n");
-	}
-
-	printf("Total overlaps: %zu\n", ctx->reports->count);
-}
 
 void diag_print_with_highlight(hxptr_t *ctx)
 {
@@ -157,7 +73,7 @@ void diag_print_with_highlight(hxptr_t *ctx)
 	}
 
 	if (ctx->reports->count == 0) {
-		printf("✓ No overlaps detected\n");
+		printf("no overlaps detected\n");
 		return;
 	}
 
@@ -165,45 +81,138 @@ void diag_print_with_highlight(hxptr_t *ctx)
 
 	for (size_t i = 0; i < ctx->reports->count; i++) {
 		diagnostic_t *d = &ctx->reports->entries[i];
-		uint32_t size = d->overlap_end - d->overlap_start + 1;
+
+		// get ranges from memory using stored indices
+		memory_entry_t *first =
+			&ctx->memory->entries[d->first_range_idx];
+		memory_entry_t *second =
+			&ctx->memory->entries[d->second_range_idx];
+
+		uint32_t overlap_end = d->overlap_start + d->overlap_size - 1;
 
 		printf("overlap #%zu: 0x%08x-0x%08x (%u bytes) line: %u -> "
-		       "line :%u\n",
+		       "line: %u\n",
 		       i + 1,
 		       d->overlap_start,
-		       d->overlap_end,
-		       size,
-		       d->first_write_line,
-		       d->second_write_line);
+		       overlap_end,
+		       d->overlap_size,
+		       first->line_num,
+		       second->line_num);
 
-		// Show before (first write) - limit to 16 bytes for readability
+		// Extract bytes from ranges on-demand
+		uint32_t offset_in_first = d->overlap_start - first->address;
+		uint32_t offset_in_second = d->overlap_start - second->address;
+
+		// Show before (first write)
 		printf("  before: ");
-		uint32_t display_size = (size > 16) ? 16 : size;
+		uint32_t display_size =
+			(d->overlap_size > 16) ? 16 : d->overlap_size;
 		for (uint32_t j = 0; j < display_size; j++) {
-			printf("%02x ", d->first_data[j]);
+			printf("%02x ", first->bytes[offset_in_first + j]);
 		}
-		if (size > 16) {
-			printf("... (%u more bytes)", size - 16);
+		if (d->overlap_size > 16) {
+			printf("... (%u more bytes)", d->overlap_size - 16);
 		}
 		printf("\n");
 
-		// show after (second write) with color highlighting
+		// show after (second write) with highlighting
 		printf("  after:  ");
 		for (uint32_t j = 0; j < display_size; j++) {
-			if (d->first_data[j] != d->second_data[j]) {
-				// red for changed bytes
+			uint8_t first_byte = first->bytes[offset_in_first + j];
+			uint8_t second_byte =
+				second->bytes[offset_in_second + j];
+
+			if (first_byte != second_byte) {
 				printf("\033[31m%02x\033[0m ",
-				       d->second_data[j]);
+				       second_byte); // red
 			} else {
-				printf("%02x ", d->second_data[j]);
+				printf("%02x ", second_byte);
 			}
 		}
-		if (size > 16) {
-			printf("... (%u more bytes)", size - 16);
+		if (d->overlap_size > 16) {
+			printf("... (%u more bytes)", d->overlap_size - 16);
 		}
 		printf("\n\n");
 	}
 }
+
+// void diag_print_compact(hxptr_t *ctx)
+// {
+// 	if (!ctx || !ctx->reports || ctx->reports->count == 0) {
+// 		return;
+// 	}
+//
+// 	printf("\n%zu overlap(s) detected:\n\n", ctx->reports->count);
+//
+// 	for (size_t i = 0; i < ctx->reports->count; i++) {
+// 		diagnostic_t *d = &ctx->reports->entries[i];
+// 		uint32_t size = d->overlap_end - d->overlap_start + 1;
+//
+// 		printf("  [%zu] 0x%08x-0x%08x (%u bytes) │ l%u → l%u\n",
+// 		       i + 1,
+// 		       d->overlap_start,
+// 		       d->overlap_end,
+// 		       size,
+// 		       d->first_write_line,
+// 		       d->second_write_line);
+// 	}
+// 	printf("\n");
+// }
+
+// void diag_print_with_highlight(hxptr_t *ctx)
+// {
+// 	if (!ctx || !ctx->reports) {
+// 		return;
+// 	}
+//
+// 	if (ctx->reports->count == 0) {
+// 		printf("✓ No overlaps detected\n");
+// 		return;
+// 	}
+//
+// 	printf("\n%zu overlap(s) detected:\n\n", ctx->reports->count);
+//
+// 	for (size_t i = 0; i < ctx->reports->count; i++) {
+// 		diagnostic_t *d = &ctx->reports->entries[i];
+// 		uint32_t size = d->overlap_end - d->overlap_start + 1;
+//
+// 		printf("overlap #%zu: 0x%08x-0x%08x (%u bytes) line: %u -> "
+// 		       "line :%u\n",
+// 		       i + 1,
+// 		       d->overlap_start,
+// 		       d->overlap_end,
+// 		       size,
+// 		       d->first_write_line,
+// 		       d->second_write_line);
+//
+// 		// Show before (first write) - limit to 16 bytes for readability
+// 		printf("  before: ");
+// 		uint32_t display_size = (size > 16) ? 16 : size;
+// 		for (uint32_t j = 0; j < display_size; j++) {
+// 			printf("%02x ", d->first_data[j]);
+// 		}
+// 		if (size > 16) {
+// 			printf("... (%u more bytes)", size - 16);
+// 		}
+// 		printf("\n");
+//
+// 		// show after (second write) with color highlighting
+// 		printf("  after:  ");
+// 		for (uint32_t j = 0; j < display_size; j++) {
+// 			if (d->first_data[j] != d->second_data[j]) {
+// 				// red for changed bytes
+// 				printf("\033[31m%02x\033[0m ",
+// 				       d->second_data[j]);
+// 			} else {
+// 				printf("%02x ", d->second_data[j]);
+// 			}
+// 		}
+// 		if (size > 16) {
+// 			printf("... (%u more bytes)", size - 16);
+// 		}
+// 		printf("\n\n");
+// 	}
+// }
 // void diag_print_with_highlight(hxptr_t *ctx)
 // {
 // 	if (!ctx || !ctx->reports || ctx->reports->count == 0) {
