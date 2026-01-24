@@ -63,7 +63,7 @@ static int sm_comp(const void *a, const void *b)
 }
 
 
-HxptrResult_t hxptr_sm_finalize(hxptr_t *hx)
+HxptrResult_t hxptr_finalize(hxptr_t *hx)
 {
 	if (!hx) {
 		return HX_ERR_NULL;

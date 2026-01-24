@@ -38,11 +38,12 @@ typedef enum {
 } IHexRecordType_t;
 
 typedef struct {
-	uint32_t address;   // contains extended hi and lo bytes
-	uint32_t line_num;  // line number for conflict resolutions
-	uint8_t byte_count; // number of bytes to help in fast rendering
-	uint8_t *bytes;	    // actual data
-	uint8_t checksum;   // checksum
+	uint32_t address;	// contains extended hi and lo bytes
+	uint32_t line_num;	// line number for conflict resolutions
+	uint8_t byte_count;	// number of bytes to help in fast rendering
+	uint8_t *bytes;		// actual data
+	uint8_t checksum;	// checksum
+	uint8_t is_data_record; // tracks data records for printing
 } memory_entry_t;
 
 typedef struct {
@@ -53,11 +54,11 @@ typedef struct {
 } sparse_memory_t;
 
 typedef struct {
-	IssueLevel_t level;
 	uint32_t first_range_idx;  // Index into ctx->memory->entries
 	uint32_t second_range_idx; // Index into ctx->memory->entries
 	uint32_t overlap_start;	   // Where overlap begins
 	uint32_t overlap_size;	   // Number of overlapping bytes
+	IssueLevel_t level;
 } diagnostic_t;
 
 typedef struct {
@@ -77,6 +78,9 @@ typedef struct {
 } hxptr_record_t;
 
 typedef struct {
+	sparse_memory_t *memory;
+	reports_t *reports;
+
 	uint32_t total_records;
 	uint32_t total_bytes;
 
@@ -85,20 +89,42 @@ typedef struct {
 	uint32_t cs;
 	uint32_t ip;
 
-	sparse_memory_t *memory;
-	reports_t *reports;
-
 	uint32_t diags_count;
 	uint8_t eof;
 	uint8_t cur_type;
 } hxptr_t;
 
+
+// lifecycle
 hxptr_t *hxptr_init(void);
-void hxptr_free(hxptr_t *hx);
+void hxptr_free(hxptr_t *ctx);
+HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path);
+
+// memory operations
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
 HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record);
-void record_to_str(hxptr_record_t *record);
-HxptrResult_t hxptr_sm_finalize(hxptr_t *hx);
-void hxptr_display_overlaps(hxptr_t *hx);
+HxptrResult_t hxptr_finalize(hxptr_t *ctx);
+HxptrResult_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
+HxptrResult_t hxptr_get_range(hxptr_t *ctx,
+			      uint32_t start,
+			      uint32_t end,
+			      uint8_t *buf,
+			      uint32_t *len);
 
-#endif
+// analysis
+HxptrResult_t hxptr_detect_overlaps(hxptr_t *ctx);
+HxptrResult_t hxptr_detect_gaps(hxptr_t *ctx, uint32_t threshold);
+
+// results query
+// void sm_get_stats(hxptr_t *ctx, hxptr_stats_t *out);
+HxptrResult_t diag_get_count(hxptr_t *ctx);
+const diagnostic_t *diag_get(hxptr_t *ctx, uint32_t idx);
+
+/* Helper: Get overlap data for custom formatting */
+HxptrResult_t diag_get_overlap_bytes(hxptr_t *ctx,
+				     uint32_t diag_idx,
+				     uint8_t **first_data,
+				     uint8_t **second_data,
+				     uint32_t *size);
+
+#endif // HXPTR_H

@@ -45,14 +45,14 @@ int main(int ac, char **av)
 		line_num++;
 	}
 
-	res = hxptr_sm_finalize(hx);
+	res = hxptr_finalize(hx);
 	if (res != HX_OK) {
 		goto cleanup;
 	}
 
-	if (hx->reports->count > 0) {
-		hxptr_display_overlaps(hx);
-	}
+	// if (hx->reports->count > 0) {
+	// 	hxptr_display_overlaps(hx);
+	// }
 
 	// printf("Loaded: %d bytes\n", hx->total_bytes);
 

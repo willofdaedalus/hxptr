@@ -68,6 +68,10 @@ void reports_free(reports_t *reports)
 
 void diag_print_with_highlight(hxptr_t *ctx)
 {
+	memory_entry_t *first, *second;
+	uint32_t first_offset, second_offset;
+	uint32_t overlap_end;
+
 	if (!ctx || !ctx->reports) {
 		return;
 	}
@@ -77,18 +81,16 @@ void diag_print_with_highlight(hxptr_t *ctx)
 		return;
 	}
 
-	printf("\n%zu overlap(s) detected:\n\n", ctx->reports->count);
+	printf("\n%u overlap(s) detected:\n\n", ctx->reports->count);
 
 	for (size_t i = 0; i < ctx->reports->count; i++) {
 		diagnostic_t *d = &ctx->reports->entries[i];
 
 		// get ranges from memory using stored indices
-		memory_entry_t *first =
-			&ctx->memory->entries[d->first_range_idx];
-		memory_entry_t *second =
-			&ctx->memory->entries[d->second_range_idx];
+		first = &ctx->memory->entries[d->first_range_idx];
+		second = &ctx->memory->entries[d->second_range_idx];
 
-		uint32_t overlap_end = d->overlap_start + d->overlap_size - 1;
+		overlap_end = d->overlap_start + d->overlap_size - 1;
 
 		printf("overlap #%zu: 0x%08x-0x%08x (%u bytes) line: %u -> "
 		       "line: %u\n",
@@ -99,16 +101,16 @@ void diag_print_with_highlight(hxptr_t *ctx)
 		       first->line_num,
 		       second->line_num);
 
-		// Extract bytes from ranges on-demand
-		uint32_t offset_in_first = d->overlap_start - first->address;
-		uint32_t offset_in_second = d->overlap_start - second->address;
+		// extract bytes from ranges on-demand
+		first_offset = d->overlap_start - first->address;
+		second_offset = d->overlap_start - second->address;
 
-		// Show before (first write)
+		// show before (first write)
 		printf("  before: ");
 		uint32_t display_size =
 			(d->overlap_size > 16) ? 16 : d->overlap_size;
 		for (uint32_t j = 0; j < display_size; j++) {
-			printf("%02x ", first->bytes[offset_in_first + j]);
+			printf("%02x ", first->bytes[first_offset + j]);
 		}
 		if (d->overlap_size > 16) {
 			printf("... (%u more bytes)", d->overlap_size - 16);
@@ -118,9 +120,8 @@ void diag_print_with_highlight(hxptr_t *ctx)
 		// show after (second write) with highlighting
 		printf("  after:  ");
 		for (uint32_t j = 0; j < display_size; j++) {
-			uint8_t first_byte = first->bytes[offset_in_first + j];
-			uint8_t second_byte =
-				second->bytes[offset_in_second + j];
+			uint8_t first_byte = first->bytes[first_offset + j];
+			uint8_t second_byte = second->bytes[second_offset + j];
 
 			if (first_byte != second_byte) {
 				printf("\033[31m%02x\033[0m ",
