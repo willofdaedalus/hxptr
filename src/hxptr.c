@@ -111,81 +111,15 @@ static int sm_comp(const void *a, const void *b)
 	}
 
 	// tie-breaker; compare by the line_num as most recent should always win
-	if (entry_a->line_num < entry_b->address) {
+	if (entry_a->line_num < entry_b->line_num) {
 		return -1;
 	}
-	if (entry_a->line_num > entry_b->address) {
+	if (entry_a->line_num > entry_b->line_num) {
 		return 1;
 	}
 
 	return -1;
 }
-
-void radix_sort_memory(memory_entry_t *arr, size_t n)
-{
-	memory_entry_t *tmp = malloc(n * sizeof(memory_entry_t));
-	if (!tmp)
-		return; // handle allocation failure
-
-	const size_t RADIX = 256; // 1 byte per pass
-	size_t count[RADIX];
-	size_t i;
-
-	// We will do 4 passes: least-significant byte to most-significant byte
-	// of address
-	for (int shift = 0; shift < 32; shift += 8) {
-		memset(count, 0, sizeof(count));
-
-		// Count occurrences of each byte value
-		for (i = 0; i < n; i++) {
-			uint8_t byte = (arr[i].address >> shift) & 0xFF;
-			count[byte]++;
-		}
-
-		// Compute prefix sums
-		size_t sum = 0;
-		for (i = 0; i < RADIX; i++) {
-			size_t tmp_count = count[i];
-			count[i] = sum;
-			sum += tmp_count;
-		}
-
-		// Scatter into tmp array
-		for (i = 0; i < n; i++) {
-			uint8_t byte = (arr[i].address >> shift) & 0xFF;
-			tmp[count[byte]++] = arr[i];
-		}
-
-		// Copy back
-		memcpy(arr, tmp, n * sizeof(memory_entry_t));
-	}
-
-	free(tmp);
-
-	// Optional: tie-breaker pass by line_num for records with same address
-	size_t start = 0;
-	while (start < n) {
-		size_t end = start + 1;
-		while (end < n && arr[end].address == arr[start].address) {
-			end++;
-		}
-		if (end - start > 1) {
-			// Sort by line_num within this range (stable sort)
-			for (size_t i = start; i < end - 1; i++) {
-				for (size_t j = i + 1; j < end; j++) {
-					if (arr[i].line_num > arr[j].line_num) {
-						memory_entry_t tmp_entry =
-							arr[i];
-						arr[i] = arr[j];
-						arr[j] = tmp_entry;
-					}
-				}
-			}
-		}
-		start = end;
-	}
-}
-
 
 HxptrResult_t hxptr_finalize_addr(hxptr_t *hx)
 {
@@ -193,12 +127,10 @@ HxptrResult_t hxptr_finalize_addr(hxptr_t *hx)
 		return HX_ERR_NULL;
 	}
 
-	radix_sort_memory(hx->memory->entries, hx->memory->count);
-
-	// qsort(hx->memory->entries,
-	//       hx->memory->count,
-	//       sizeof(memory_entry_t),
-	//       sm_comp);
+	qsort(hx->memory->entries,
+	      hx->memory->count,
+	      sizeof(memory_entry_t),
+	      sm_comp);
 
 	hx->memory->finalized = 1;
 
