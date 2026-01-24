@@ -2,8 +2,10 @@
 #include "hxptr_diagnostics.h"
 #include "hxptr_memory.h"
 #include "hxptr_record.h"
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 hxptr_t *hxptr_init(void)
 {
@@ -28,6 +30,61 @@ hxptr_t *hxptr_init(void)
 	}
 
 	return hx;
+}
+
+HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
+{
+	FILE *fp;
+	const char *filename;
+	char buf[512];
+	uint32_t linenum = 1;
+	HxptrResult_t res;
+	hxptr_record_t record = {0};
+
+	if (!ctx || !path) {
+		return HX_ERR_NULL;
+	}
+
+	fp = fopen(path, "r");
+	if (!fp) {
+		perror("fopen");
+		return HX_ERR_BAD_FILE;
+	}
+
+	// get the actual filename name
+	filename = strrchr(path, '/');
+	filename = filename ? filename + 1 : path;
+
+	ctx->filename = strdup(filename);
+	if (!ctx->filename) {
+		printf("bad alloc\n");
+		return HX_ERR_BAD_ALLOC;
+	}
+
+	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		res = hxptr_hex_to_record(buf, &record);
+		if (res != HX_OK) {
+			printf("%d\n", res);
+			return res;
+		}
+
+		record.linenum = linenum;
+		res = hxptr_append_record(ctx, &record);
+		if (res != HX_OK) {
+			printf("%d\n", res);
+			goto cleanup;
+		}
+
+		linenum++;
+	}
+
+	fclose(fp);
+
+	return HX_OK;
+
+cleanup:
+	fclose(fp);
+	return res;
 }
 
 void hxptr_free(hxptr_t *hx)
@@ -60,19 +117,88 @@ static int sm_comp(const void *a, const void *b)
 	if (entry_a->line_num > entry_b->address) {
 		return 1;
 	}
+
+	return -1;
+}
+
+void radix_sort_memory(memory_entry_t *arr, size_t n)
+{
+	memory_entry_t *tmp = malloc(n * sizeof(memory_entry_t));
+	if (!tmp)
+		return; // handle allocation failure
+
+	const size_t RADIX = 256; // 1 byte per pass
+	size_t count[RADIX];
+	size_t i;
+
+	// We will do 4 passes: least-significant byte to most-significant byte
+	// of address
+	for (int shift = 0; shift < 32; shift += 8) {
+		memset(count, 0, sizeof(count));
+
+		// Count occurrences of each byte value
+		for (i = 0; i < n; i++) {
+			uint8_t byte = (arr[i].address >> shift) & 0xFF;
+			count[byte]++;
+		}
+
+		// Compute prefix sums
+		size_t sum = 0;
+		for (i = 0; i < RADIX; i++) {
+			size_t tmp_count = count[i];
+			count[i] = sum;
+			sum += tmp_count;
+		}
+
+		// Scatter into tmp array
+		for (i = 0; i < n; i++) {
+			uint8_t byte = (arr[i].address >> shift) & 0xFF;
+			tmp[count[byte]++] = arr[i];
+		}
+
+		// Copy back
+		memcpy(arr, tmp, n * sizeof(memory_entry_t));
+	}
+
+	free(tmp);
+
+	// Optional: tie-breaker pass by line_num for records with same address
+	size_t start = 0;
+	while (start < n) {
+		size_t end = start + 1;
+		while (end < n && arr[end].address == arr[start].address) {
+			end++;
+		}
+		if (end - start > 1) {
+			// Sort by line_num within this range (stable sort)
+			for (size_t i = start; i < end - 1; i++) {
+				for (size_t j = i + 1; j < end; j++) {
+					if (arr[i].line_num > arr[j].line_num) {
+						memory_entry_t tmp_entry =
+							arr[i];
+						arr[i] = arr[j];
+						arr[j] = tmp_entry;
+					}
+				}
+			}
+		}
+		start = end;
+	}
 }
 
 
-HxptrResult_t hxptr_finalize(hxptr_t *hx)
+HxptrResult_t hxptr_finalize_addr(hxptr_t *hx)
 {
 	if (!hx) {
 		return HX_ERR_NULL;
 	}
 
-	qsort(hx->memory->entries,
-	      hx->memory->count,
-	      sizeof(memory_entry_t),
-	      sm_comp);
+	radix_sort_memory(hx->memory->entries, hx->memory->count);
+
+	// qsort(hx->memory->entries,
+	//       hx->memory->count,
+	//       sizeof(memory_entry_t),
+	//       sm_comp);
 
 	hx->memory->finalized = 1;
 

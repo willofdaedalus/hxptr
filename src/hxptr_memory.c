@@ -50,7 +50,7 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 	// profile
 	entry->address = base_addr;
 	entry->byte_count = record->byte_count;
-	entry->line_num = record->line_num;
+	entry->line_num = record->linenum;
 	entry->checksum = record->checksum;
 	entry->bytes = malloc(record->byte_count * sizeof(uint8_t));
 	if (!entry->bytes) {
@@ -88,12 +88,12 @@ static void sm_print_entries(const sparse_memory_t *mem)
 	}
 }
 
-HxptrResult_t hxptr_detect_overlaps(hxptr_t *ctx)
+HxptrResult_t sm_detect_overlaps(hxptr_t *ctx)
 {
 	if (!ctx || !ctx->memory || !ctx->reports) {
 		return HX_ERR_NULL;
 	}
-	sm_print_entries(ctx->memory);
+	// sm_print_entries(ctx->memory);
 	if (!ctx->memory->finalized) {
 		fprintf(stderr,
 			"error: call finalize() before detecting overlaps\n");

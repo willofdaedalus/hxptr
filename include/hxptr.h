@@ -69,7 +69,7 @@ typedef struct {
 
 
 typedef struct {
-	uint32_t line_num;
+	uint32_t linenum;
 	uint16_t address;
 	uint8_t byte_count;
 	uint8_t bytes[256];
@@ -80,6 +80,7 @@ typedef struct {
 typedef struct {
 	sparse_memory_t *memory;
 	reports_t *reports;
+	char *filename;
 
 	uint32_t total_records;
 	uint32_t total_bytes;
@@ -97,13 +98,13 @@ typedef struct {
 
 // lifecycle
 hxptr_t *hxptr_init(void);
-void hxptr_free(hxptr_t *ctx);
 HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path);
+void hxptr_free(hxptr_t *ctx);
 
 // memory operations
 HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
 HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record);
-HxptrResult_t hxptr_finalize(hxptr_t *ctx);
+HxptrResult_t hxptr_finalize_addr(hxptr_t *ctx);
 HxptrResult_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
 HxptrResult_t hxptr_get_range(hxptr_t *ctx,
 			      uint32_t start,
@@ -120,7 +121,6 @@ HxptrResult_t hxptr_detect_gaps(hxptr_t *ctx, uint32_t threshold);
 HxptrResult_t diag_get_count(hxptr_t *ctx);
 const diagnostic_t *diag_get(hxptr_t *ctx, uint32_t idx);
 
-/* Helper: Get overlap data for custom formatting */
 HxptrResult_t diag_get_overlap_bytes(hxptr_t *ctx,
 				     uint32_t diag_idx,
 				     uint8_t **first_data,
