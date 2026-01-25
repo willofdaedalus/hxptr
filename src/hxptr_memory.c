@@ -52,10 +52,10 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 	entry->byte_count = record->byte_count;
 	entry->line_num = record->linenum;
 	entry->checksum = record->checksum;
-	entry->bytes = malloc(record->byte_count * sizeof(uint8_t));
-	if (!entry->bytes) {
-		return HX_ERR_BAD_APPEND;
-	}
+	// entry->bytes = malloc(record->byte_count * sizeof(uint8_t));
+	// if (!entry->bytes) {
+	// 	return HX_ERR_BAD_APPEND;
+	// }
 	memcpy(entry->bytes, record->bytes, record->byte_count);
 	if (record->type == IHEX_DATA) {
 		entry->is_data_record = 1;
@@ -72,7 +72,7 @@ HxptrResult_t sm_analyze(hxptr_t *ctx, uint32_t threshold)
 	hxptr_stats_t *stats;
 	memory_entry_t *cur, *next;
 	// overlap variables
-	uint32_t start_end, overlap_start, overlap_end, overlap_sz, next_end;
+	uint32_t cur_end, overlap_start, overlap_end, overlap_sz, next_end;
 	// gap check variables
 	uint32_t cur_end_bound, gap_size;
 
@@ -81,64 +81,37 @@ HxptrResult_t sm_analyze(hxptr_t *ctx, uint32_t threshold)
 	}
 
 	stats = ctx->stats;
-	for (uint32_t i = 0; i < ctx->memory->count; i++) {
+	for (uint32_t i = 0; i < ctx->memory->count - 1; i++) {
 		cur = &ctx->memory->entries[i];
+		next = &ctx->memory->entries[i + 1];
 
-		if (i == 0) {
-			stats->addr_lowest = cur->address;
-		}
-		if (i == ctx->memory->count - 1) {
-			stats->addr_highest =
-				cur->address + cur->byte_count - 1;
-		}
+		cur_end = cur->address + cur->byte_count;
 
-		// make sure not to exceed actual last entry of the sparse
-		// memory structure
-		// overlap detection
-		if (i < ctx->memory->count - 1) {
-			next = &ctx->memory->entries[i + 1];
-			start_end = cur->address + cur->byte_count - 1;
-
-			if (next->address <= start_end) {
-				overlap_start = next->address;
-				overlap_end = start_end;
-
-				next_end = next->address + next->byte_count + 1;
-				if (next_end < start_end) {
-					overlap_end = next_end;
-				}
-
-				overlap_sz = overlap_end - overlap_start + 1;
-
-				diagnostic_t d = {
-					.type = DIAG_OVERLAP,
-					.first_idx = i,
-					.second_idx = i + 1,
-					.address = overlap_start,
-					.size = overlap_sz,
-				};
-
+		if (next->address < cur_end) {
+			// overlap detected
+			overlap_sz = cur_end - next->address;
+			diagnostic_t d = {.type = DIAG_OVERLAP,
+					  .address = next->address,
+					  .size = overlap_sz,
+					  .first_idx = i,
+					  .second_idx = i + 1};
+			diag_append(ctx, &d);
+			stats->total_overlaps++;
+		} else if (next->address > cur_end) {
+			// gap detected
+			gap_size = next->address - cur_end;
+			if (gap_size >= threshold) {
+				diagnostic_t d = {.type = DIAG_GAP,
+						  .address = cur_end,
+						  .size = gap_size,
+						  .first_idx = i,
+						  .second_idx = i + 1};
 				diag_append(ctx, &d);
-				stats->total_overlaps++;
-			} else {
-				cur_end_bound = cur->address + cur->byte_count;
-				gap_size = next->address - cur_end_bound;
+				stats->total_gaps++;
+			}
 
-				if (gap_size >= threshold) {
-					diagnostic_t d = {
-						.type = DIAG_GAP,
-						.first_idx = i,
-						.second_idx = i + 1,
-						.address = cur_end_bound,
-						.size = gap_size,
-					};
-					diag_append(ctx, &d);
-					stats->total_gaps++;
-				}
-
-				if (gap_size > stats->largest_gap) {
-					stats->largest_gap = gap_size;
-				}
+			if (gap_size > stats->largest_gap) {
+				stats->largest_gap = gap_size;
 			}
 		}
 	}
@@ -219,10 +192,6 @@ void sm_free(sparse_memory_t *mem)
 {
 	if (!mem) {
 		return;
-	}
-
-	for (uint32_t i = 0; i < mem->count; i++) {
-		free(mem->entries[i].bytes);
 	}
 
 	free(mem->entries);

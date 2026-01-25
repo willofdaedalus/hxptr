@@ -6,6 +6,7 @@
 #define ESA_FACTOR 16
 #define ADDR_COUNT 2
 #define START_COUNT 4
+#define MAX_BYTES 32
 
 typedef enum {
 	HX_OK = 0,
@@ -46,12 +47,12 @@ typedef enum {
 
 
 typedef struct {
-	uint32_t address;	// contains extended hi and lo bytes
-	uint32_t line_num;	// line number for conflict resolutions
-	uint8_t *bytes;		// actual data
-	uint8_t byte_count;	// number of bytes to help in fast rendering
-	uint8_t checksum;	// checksum
-	uint8_t is_data_record; // tracks data records for printing
+	uint32_t address;	  // contains extended hi and lo bytes
+	uint32_t line_num;	  // line number for conflict resolutions
+	uint8_t bytes[MAX_BYTES]; // actual data
+	uint8_t byte_count;	  // number of bytes to help in fast rendering
+	uint8_t checksum;	  // checksum
+	uint8_t is_data_record;	  // tracks data records for printing
 } memory_entry_t;
 
 typedef struct {

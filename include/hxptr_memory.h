@@ -3,7 +3,7 @@
 
 #include "hxptr.h"
 
-#define MEM_CAPACITY 1024
+#define MEM_CAPACITY 4098
 
 sparse_memory_t *sm_init(void);
 // HxptrResult_t sm_append_record(sparse_memory_t *mem, hxptr_record_t *record);
