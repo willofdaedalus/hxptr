@@ -7,164 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-hxptr_t *hxptr_init(void)
-{
-	hxptr_t *hx;
-
-	hx = calloc(1, sizeof(hxptr_t));
-	if (!hx) {
-		return NULL;
-	}
-
-	hx->memory = sm_init();
-	if (!hx->memory) {
-		free(hx);
-		return NULL;
-	}
-
-	hx->reports = reports_init();
-	if (!hx->reports) {
-		free(hx->memory);
-		free(hx);
-		return NULL;
-	}
-
-	return hx;
-}
-
-HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
-{
-	FILE *fp;
-	const char *filename;
-	char buf[512];
-	uint32_t linenum = 1;
-	HxptrResult_t res;
-	hxptr_record_t record = {0};
-
-	if (!ctx || !path) {
-		return HX_ERR_NULL;
-	}
-
-	fp = fopen(path, "r");
-	if (!fp) {
-		perror("fopen");
-		return HX_ERR_BAD_FILE;
-	}
-
-	// get the actual filename name
-	filename = strrchr(path, '/');
-	filename = filename ? filename + 1 : path;
-
-	ctx->filename = strdup(filename);
-	if (!ctx->filename) {
-		printf("bad alloc\n");
-		return HX_ERR_BAD_ALLOC;
-	}
-
-	while (fgets(buf, sizeof(buf), fp) != NULL) {
-		res = hxptr_hex_to_record(buf, &record);
-		if (res != HX_OK) {
-			printf("%d\n", res);
-			return res;
-		}
-
-		record.linenum = linenum;
-		res = hxptr_append_record(ctx, &record);
-		if (res != HX_OK) {
-			printf("%d\n", res);
-			goto cleanup;
-		}
-
-		linenum++;
-	}
-
-	fclose(fp);
-
-	return HX_OK;
-
-cleanup:
-	fclose(fp);
-	return res;
-}
-
-void hxptr_free(hxptr_t *hx)
-{
-	if (!hx) {
-		return;
-	}
-
-	sm_free(hx->memory);
-	reports_free(hx->reports);
-	free(hx);
-}
-
-static int sm_comp(const void *a, const void *b)
-{
-	memory_entry_t *entry_a = (memory_entry_t *) a;
-	memory_entry_t *entry_b = (memory_entry_t *) b;
-
-	if (entry_a->address < entry_b->address) {
-		return -1;
-	}
-	if (entry_a->address > entry_b->address) {
-		return 1;
-	}
-
-	// tie-breaker; compare by the line_num as most recent should always win
-	if (entry_a->line_num < entry_b->line_num) {
-		return -1;
-	}
-	if (entry_a->line_num > entry_b->line_num) {
-		return 1;
-	}
-
-	return -1;
-}
-
-HxptrResult_t hxptr_finalize_addr(hxptr_t *hx)
-{
-	if (!hx) {
-		return HX_ERR_NULL;
-	}
-
-	qsort(hx->memory->entries,
-	      hx->memory->count,
-	      sizeof(memory_entry_t),
-	      sm_comp);
-
-	hx->memory->finalized = 1;
-
-	// more should be done here
-	return sm_detect_overlaps(hx);
-}
-
-void hxptr_display_overlaps(hxptr_t *hx)
-{
-	if (!hx) {
-		return;
-	}
-
-	if (hx->reports->count == 0) {
-		printf("no overlaps detected!\n\n");
-	}
-
-	// NOTE
-	// store the addresses and the count and the index it starts at for tui
-	// integration in the future
-	diag_print_with_highlight(hx);
-}
-
-// NOTE; have all hxptr_* functions pass a ctx; this one doesn't
-HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record)
-{
-	if (!line || !record) {
-		return HX_ERR_NULL;
-	}
-
-	return hex_line_to_record(line, record);
-}
-
-HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
+static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 {
 	uint32_t addr;
 	HxptrResult_t res;
@@ -193,8 +36,8 @@ HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return res;
 		}
 
-		ctx->total_bytes += record->byte_count;
-		ctx->total_records += 1;
+		ctx->stats->total_bytes += record->byte_count;
+		ctx->stats->total_records += 1;
 		break;
 
 	case IHEX_EOF:
@@ -265,3 +108,164 @@ HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 
 	return HX_OK;
 }
+
+static int sm_comp(const void *a, const void *b)
+{
+	memory_entry_t *entry_a = (memory_entry_t *) a;
+	memory_entry_t *entry_b = (memory_entry_t *) b;
+
+	if (entry_a->address < entry_b->address) {
+		return -1;
+	}
+	if (entry_a->address > entry_b->address) {
+		return 1;
+	}
+
+	// tie-breaker; compare by the line_num as most recent should always win
+	if (entry_a->line_num < entry_b->line_num) {
+		return -1;
+	}
+	if (entry_a->line_num > entry_b->line_num) {
+		return 1;
+	}
+
+	return -1;
+}
+
+
+hxptr_t *hxptr_init(void)
+{
+	hxptr_t *hx;
+
+	hx = calloc(1, sizeof(hxptr_t));
+	if (!hx) {
+		return NULL;
+	}
+
+	hx->memory = sm_init();
+	if (!hx->memory) {
+		free(hx);
+		return NULL;
+	}
+
+	hx->stats = calloc(1, sizeof(hxptr_stats_t));
+	if (!hx->stats) {
+		free(hx->memory);
+		free(hx);
+	}
+
+	hx->reports = reports_init();
+	if (!hx->reports) {
+		free(hx->memory);
+		free(hx->stats);
+		free(hx);
+		return NULL;
+	}
+
+	return hx;
+}
+
+HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
+{
+	FILE *fp;
+	const char *filename;
+	char buf[512];
+	uint32_t linenum = 1;
+	HxptrResult_t res;
+	hxptr_record_t record = {0};
+
+	if (!ctx || !path) {
+		return HX_ERR_NULL;
+	}
+
+	fp = fopen(path, "r");
+	if (!fp) {
+		perror("fopen");
+		return HX_ERR_BAD_FILE;
+	}
+
+	// get the actual filename name
+	filename = strrchr(path, '/');
+	filename = filename ? filename + 1 : path;
+
+	ctx->filename = strdup(filename);
+	if (!ctx->filename) {
+		printf("bad alloc\n");
+		return HX_ERR_BAD_ALLOC;
+	}
+
+	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		res = hex_line_to_record(buf, &record);
+		if (res != HX_OK) {
+			printf("%d\n", res);
+			return res;
+		}
+
+		record.linenum = linenum;
+		res = hxptr_append_record(ctx, &record);
+		if (res != HX_OK) {
+			printf("%d\n", res);
+			goto cleanup;
+		}
+
+		linenum++;
+	}
+
+	fclose(fp);
+
+	return HX_OK;
+
+cleanup:
+	fclose(fp);
+	return res;
+}
+
+void hxptr_free(hxptr_t *hx)
+{
+	if (!hx) {
+		return;
+	}
+
+	free(hx->stats);
+	free(hx->filename);
+	sm_free(hx->memory);
+	reports_free(hx->reports);
+	free(hx);
+}
+
+HxptrResult_t hxptr_finalize_memory(hxptr_t *hx)
+{
+	if (!hx) {
+		return HX_ERR_NULL;
+	}
+
+	if (hx->memory->count < 1) {
+		return HX_OK;
+	}
+
+	qsort(hx->memory->entries,
+	      hx->memory->count,
+	      sizeof(memory_entry_t),
+	      sm_comp);
+
+	hx->memory->finalized = 1;
+
+	// more should be done here
+	return sm_analyze(hx, 128);
+}
+
+// void hxptr_display_overlaps(hxptr_t *hx)
+// {
+// 	if (!hx) {
+// 		return;
+// 	}
+//
+// 	if (hx->reports->count == 0) {
+// 		printf("no overlaps detected!\n\n");
+// 	}
+//
+// 	// NOTE
+// 	// store the addresses and the count and the index it starts at for tui
+// 	// integration in the future
+// 	diag_print_with_highlight(hx);
+// }

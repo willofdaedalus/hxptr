@@ -25,10 +25,18 @@ int main(int ac, char **av)
 		return -1;
 	}
 
-	res = hxptr_finalize_addr(hx);
+	res = hxptr_finalize_memory(hx);
 	if (res != HX_OK) {
 		goto cleanup;
 	}
+
+	printf("loaded %u bytes\n", hx->stats->total_bytes);
+	printf("%u total overlaps\n", hx->stats->total_overlaps);
+	printf("%u total records\n", hx->stats->total_records);
+	printf("%u total gaps\n", hx->stats->total_gaps);
+	printf("0x%.8x address lo\n", hx->stats->addr_lowest);
+	printf("0x%.8x address hi\n", hx->stats->addr_highest);
+	printf("%u largest gap\n", hx->stats->largest_gap);
 
 	// res = hxptr_detect_overlaps(hx);
 	// if (res != HX_OK) {

@@ -37,11 +37,19 @@ typedef enum {
 	IHEX_SLA = 0x5	 // start linear address
 } IHexRecordType_t;
 
+typedef enum {
+	DIAG_OVERLAP,
+	DIAG_GAP,
+	DIAG_OUT_OF_BOUNDS,
+	DIAG_PROTECTED_REGION
+} DiagnosticType_t;
+
+
 typedef struct {
 	uint32_t address;	// contains extended hi and lo bytes
 	uint32_t line_num;	// line number for conflict resolutions
-	uint8_t byte_count;	// number of bytes to help in fast rendering
 	uint8_t *bytes;		// actual data
+	uint8_t byte_count;	// number of bytes to help in fast rendering
 	uint8_t checksum;	// checksum
 	uint8_t is_data_record; // tracks data records for printing
 } memory_entry_t;
@@ -54,10 +62,13 @@ typedef struct {
 } sparse_memory_t;
 
 typedef struct {
-	uint32_t first_range_idx;  // Index into ctx->memory->entries
-	uint32_t second_range_idx; // Index into ctx->memory->entries
-	uint32_t overlap_start;	   // Where overlap begins
-	uint32_t overlap_size;	   // Number of overlapping bytes
+	uint32_t first_idx;  // index into memory->entries
+	uint32_t second_idx; // for overlaps/gaps
+
+	uint32_t address; // where issue starts
+	uint32_t size;	  // size of issue (overlap/gap)
+
+	DiagnosticType_t type;
 	IssueLevel_t level;
 } diagnostic_t;
 
@@ -69,21 +80,31 @@ typedef struct {
 
 
 typedef struct {
+	uint8_t bytes[256];
 	uint32_t linenum;
 	uint16_t address;
 	uint8_t byte_count;
-	uint8_t bytes[256];
 	uint8_t checksum;
 	IHexRecordType_t type;
 } hxptr_record_t;
+
+typedef struct {
+	uint32_t total_bytes;
+	uint32_t total_ranges;
+	uint32_t total_overlaps;
+	uint32_t total_gaps;
+	uint32_t total_records;
+	uint32_t addr_lowest;
+	uint32_t addr_highest;
+	uint32_t largest_gap;
+} hxptr_stats_t;
 
 typedef struct {
 	sparse_memory_t *memory;
 	reports_t *reports;
 	char *filename;
 
-	uint32_t total_records;
-	uint32_t total_bytes;
+	hxptr_stats_t *stats;
 
 	uint32_t segment;
 	uint32_t linear;
@@ -95,16 +116,13 @@ typedef struct {
 	uint8_t cur_type;
 } hxptr_t;
 
-
 // lifecycle
 hxptr_t *hxptr_init(void);
 HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path);
 void hxptr_free(hxptr_t *ctx);
 
 // memory operations
-HxptrResult_t hxptr_hex_to_record(char *line, hxptr_record_t *record);
-HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record);
-HxptrResult_t hxptr_finalize_addr(hxptr_t *ctx);
+HxptrResult_t hxptr_finalize_memory(hxptr_t *ctx);
 HxptrResult_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
 HxptrResult_t hxptr_get_range(hxptr_t *ctx,
 			      uint32_t start,
