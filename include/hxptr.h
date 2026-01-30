@@ -53,6 +53,7 @@ typedef struct {
 	uint8_t byte_count;	  // number of bytes to help in fast rendering
 	uint8_t checksum;	  // checksum
 	uint8_t is_data_record;	  // tracks data records for printing
+	uint16_t byte_sum;	  // fast way to detect gaps
 } memory_entry_t;
 
 typedef struct {
@@ -81,9 +82,10 @@ typedef struct {
 
 
 typedef struct {
-	uint8_t bytes[256];
+	uint8_t data[32];
 	uint32_t linenum;
 	uint16_t address;
+	uint16_t byte_sum; // fast way to detect gaps
 	uint8_t byte_count;
 	uint8_t checksum;
 	IHexRecordType_t type;
@@ -99,6 +101,10 @@ typedef struct {
 	uint32_t addr_highest;
 	uint32_t largest_gap;
 } hxptr_stats_t;
+
+typedef struct {
+
+} mcu_profile_t;
 
 typedef struct {
 	sparse_memory_t *memory;
@@ -137,13 +143,13 @@ HxptrResult_t hxptr_detect_gaps(hxptr_t *ctx, uint32_t threshold);
 
 // results query
 // void sm_get_stats(hxptr_t *ctx, hxptr_stats_t *out);
-HxptrResult_t diag_get_count(hxptr_t *ctx);
-const diagnostic_t *diag_get(hxptr_t *ctx, uint32_t idx);
-
-HxptrResult_t diag_get_overlap_bytes(hxptr_t *ctx,
-				     uint32_t diag_idx,
-				     uint8_t **first_data,
-				     uint8_t **second_data,
-				     uint32_t *size);
+// HxptrResult_t diag_get_count(hxptr_t *ctx);
+// const diagnostic_t *diag_get(hxptr_t *ctx, uint32_t idx);
+//
+// HxptrResult_t diag_get_overlap_bytes(hxptr_t *ctx,
+// 				     uint32_t diag_idx,
+// 				     uint8_t **first_data,
+// 				     uint8_t **second_data,
+// 				     uint32_t *size);
 
 #endif // HXPTR_H

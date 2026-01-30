@@ -59,7 +59,7 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return HX_ERR_INV_RECORD;
 		}
 		ctx->segment =
-			(uint16_t) ((record->bytes[0] << 8) | record->bytes[1]);
+			(uint16_t) ((record->data[0] << 8) | record->data[1]);
 		// ctx->segment = ((uint16_t) record->bytes[0] << 8) |
 		// 	       (uint16_t) record->bytes[1];
 
@@ -72,8 +72,8 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return HX_ERR_INV_RECORD;
 		}
 
-		ctx->linear = ((uint16_t) record->bytes[0] << 8) |
-			      (uint16_t) record->bytes[1];
+		ctx->linear = ((uint16_t) record->data[0] << 8) |
+			      (uint16_t) record->data[1];
 
 		ctx->segment = 0;
 		ctx->cur_type = IHEX_ELA;
@@ -83,10 +83,8 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 		if (record->byte_count != START_COUNT || record->address != 0) {
 			return HX_ERR_INV_RECORD;
 		}
-		ctx->cs =
-			(uint16_t) ((record->bytes[0] << 8) | record->bytes[1]);
-		ctx->ip =
-			(uint16_t) ((record->bytes[2] << 8) | record->bytes[3]);
+		ctx->cs = (uint16_t) ((record->data[0] << 8) | record->data[1]);
+		ctx->ip = (uint16_t) ((record->data[2] << 8) | record->data[3]);
 		ctx->cur_type = IHEX_SSA;
 		break;
 
@@ -95,10 +93,8 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return HX_ERR_INV_RECORD;
 		}
 
-		ctx->cs =
-			(uint16_t) ((record->bytes[0] << 8) | record->bytes[1]);
-		ctx->ip =
-			(uint16_t) ((record->bytes[2] << 8) | record->bytes[3]);
+		ctx->cs = (uint16_t) ((record->data[0] << 8) | record->data[1]);
+		ctx->ip = (uint16_t) ((record->data[2] << 8) | record->data[3]);
 		ctx->cur_type = IHEX_SLA;
 		break;
 
@@ -253,19 +249,3 @@ HxptrResult_t hxptr_finalize_memory(hxptr_t *hx)
 	// more should be done here
 	return sm_analyze(hx, 128);
 }
-
-// void hxptr_display_overlaps(hxptr_t *hx)
-// {
-// 	if (!hx) {
-// 		return;
-// 	}
-//
-// 	if (hx->reports->count == 0) {
-// 		printf("no overlaps detected!\n\n");
-// 	}
-//
-// 	// NOTE
-// 	// store the addresses and the count and the index it starts at for tui
-// 	// integration in the future
-// 	diag_print_with_highlight(hx);
-// }

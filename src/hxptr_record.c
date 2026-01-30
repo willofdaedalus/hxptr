@@ -3,11 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-// take input as str
-// convert that to a byte array
-// pass that byte array for checksum validation
-// if it passes return a rec
-
 static inline uint8_t hex_char_to_nibble(const char c)
 {
 	if (c >= '0' && c <= '9') {
@@ -31,7 +26,7 @@ static inline uint8_t hex_to_byte(const char *str)
 }
 
 static HxptrResult_t
-ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count)
+ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count, uint16_t *sum)
 {
 	size_t idx, hex_chars;
 
@@ -83,7 +78,9 @@ ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count)
 		// 	break;
 		// }
 
-		out[idx++] = hex_to_byte(line);
+		out[idx] = hex_to_byte(line);
+		*sum += out[idx];
+		idx++;
 		line += 2;
 	}
 
@@ -110,8 +107,6 @@ static inline HxptrResult_t validate_checksum(uint8_t *data, size_t data_len)
 static HxptrResult_t validate_hex_bytes(uint8_t *data, size_t data_len)
 {
 	uint8_t bc, type;
-	uint16_t sum;
-	size_t i;
 
 	if (!data) {
 		return HX_ERR_NULL;
@@ -136,6 +131,7 @@ static HxptrResult_t validate_hex_bytes(uint8_t *data, size_t data_len)
 HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 {
 	uint8_t bytes[MAX_BYTE_COUNT] = {0};
+	uint16_t sum = 0;
 	size_t count;
 	HxptrResult_t res;
 
@@ -143,7 +139,7 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	if (!line) {
 		return HX_ERR_NULL;
 	}
-	res = ihex_to_bytes(line, (uint8_t *) bytes, &count);
+	res = ihex_to_bytes(line, (uint8_t *) bytes, &count, &sum);
 	if (res != HX_OK) {
 		return res;
 	}
@@ -158,8 +154,9 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	out_record->address = (uint16_t) ((bytes[1] << 8) | bytes[2]);
 
 	out_record->type = bytes[3];
-	memcpy(out_record->bytes, &bytes[4], out_record->byte_count);
+	memcpy(out_record->data, &bytes[4], out_record->byte_count);
 
+	out_record->byte_sum = sum;
 	out_record->checksum = bytes[count - 1];
 
 	return HX_OK;
@@ -203,7 +200,7 @@ void record_to_str(hxptr_record_t *record)
 
 	printf("data bytes: ");
 	for (int i = 0; i < record->byte_count; i++) {
-		printf("%.2x ", record->bytes[i]);
+		printf("%.2x ", record->data[i]);
 	}
 	putchar('\n');
 
