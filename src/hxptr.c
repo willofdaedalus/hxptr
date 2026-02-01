@@ -1,6 +1,7 @@
 #include "hxptr.h"
 #include "hxptr_diagnostics.h"
 #include "hxptr_memory.h"
+#include "hxptr_profile.h"
 #include "hxptr_record.h"
 
 #include <stdio.h>
@@ -156,6 +157,14 @@ hxptr_t *hxptr_init(void)
 		free(hx->stats);
 		free(hx);
 		return NULL;
+	}
+
+	hx->profile = profile_load();
+	if (!hx->profile) {
+		free(hx->reports);
+		free(hx->memory);
+		free(hx->stats);
+		free(hx);
 	}
 
 	return hx;

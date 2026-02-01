@@ -3,7 +3,6 @@
 
 int main(int ac, char **av)
 {
-	char buf[512];
 	hxptr_t *hx;
 	HxptrResult_t res;
 

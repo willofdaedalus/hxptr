@@ -103,12 +103,25 @@ typedef struct {
 } hxptr_stats_t;
 
 typedef struct {
+	char name[16];
+	uint32_t start;
+	uint32_t end;
+	uint8_t protected;
+} profile_region_t;
 
+typedef struct {
+	char name[32];
+	char architecture[16];
+	uint32_t flash_start;
+	uint32_t flash_size;
+	profile_region_t *regions;
+	uint8_t num_regions;
 } mcu_profile_t;
 
 typedef struct {
 	sparse_memory_t *memory;
 	reports_t *reports;
+	mcu_profile_t *profile;
 	char *filename;
 
 	hxptr_stats_t *stats;
