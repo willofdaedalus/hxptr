@@ -233,6 +233,7 @@ void hxptr_free(hxptr_t *hx)
 
 	free(hx->stats);
 	free(hx->filename);
+	mcu_profile_free(hx->profile);
 	sm_free(hx->memory);
 	reports_free(hx->reports);
 	free(hx);
