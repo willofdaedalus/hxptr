@@ -38,6 +38,7 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return res;
 		}
 
+		// track highest and lowest addr
 		if (!lowest_set) {
 			ctx->stats->addr_lowest = addr;
 			lowest_set = 1;
@@ -137,7 +138,7 @@ static int sm_comp(const void *a, const void *b)
 		return 1;
 	}
 
-	return -1;
+	return 0;
 }
 
 
@@ -160,6 +161,7 @@ hxptr_t *hxptr_init(void)
 	if (!hx->stats) {
 		free(hx->memory);
 		free(hx);
+		return NULL;
 	}
 
 	hx->reports = reports_init();
@@ -176,6 +178,7 @@ hxptr_t *hxptr_init(void)
 		free(hx->memory);
 		free(hx->stats);
 		free(hx);
+		return NULL;
 	}
 
 	return hx;

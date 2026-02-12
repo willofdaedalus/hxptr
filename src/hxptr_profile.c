@@ -1,5 +1,6 @@
 #include "hxptr_profile.h"
 #include "hxptr.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,7 +18,8 @@ make_region(const char *name, uint32_t start, uint32_t end, uint8_t protected)
 		return NULL;
 	}
 
-	strncpy(region->name, name, strlen(name));
+	snprintf(region->name, strlen(name) - 1, "%s", name);
+	// strncpy(region->name, name, strlen(name));
 	region->start = start;
 	region->end = end;
 	region->protected = protected;

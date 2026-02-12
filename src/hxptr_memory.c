@@ -27,7 +27,7 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 			       hxptr_record_t *record,
 			       uint32_t base_addr)
 {
-	memory_entry_t *entry;
+	memory_entry_t *entry, *temp;
 
 	if (!record || !mem) {
 		return HX_ERR_NULL;
@@ -36,13 +36,13 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 	// check and double the capacity when necessary
 	if (mem->count >= mem->cap) {
 		mem->cap *= 2;
-		mem->entries = realloc(mem->entries,
-				       mem->cap * sizeof(memory_entry_t));
-		if (!mem->entries) {
+		temp = realloc(mem->entries, mem->cap * sizeof(memory_entry_t));
+		if (!temp) {
 			// TODO; make sure to free this from the caller side of
 			// things
 			return HX_ERR_NULL;
 		}
+		mem->entries = temp;
 	}
 
 	entry = &mem->entries[mem->count];
