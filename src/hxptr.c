@@ -10,6 +10,7 @@
 
 static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 {
+	static uint8_t lowest_set = 0;
 	uint32_t addr;
 	HxptrResult_t res;
 
@@ -36,6 +37,16 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 		if (res != HX_OK) {
 			return res;
 		}
+
+		if (!lowest_set) {
+			ctx->stats->addr_lowest = addr;
+			lowest_set = 1;
+		}
+
+		if (addr > ctx->stats->addr_highest) {
+			ctx->stats->addr_highest = addr;
+		}
+
 
 		ctx->stats->total_bytes += record->byte_count;
 		ctx->stats->total_records += 1;
@@ -258,4 +269,17 @@ HxptrResult_t hxptr_finalize_memory(hxptr_t *hx)
 
 	// more should be done here
 	return sm_analyze(hx, 128);
+}
+
+HxptrResult_t hxptr_print_stats(hxptr_t *hx)
+{
+	printf("hxptr stats for '%s'\n", hx->filename);
+	printf("read %u total bytes\n", hx->stats->total_bytes);
+	printf("read %u total records\n", hx->stats->total_records);
+	printf("read %u total overlaps\n", hx->stats->total_overlaps);
+	printf("read %u total gaps\n", hx->stats->total_gaps);
+	printf("address starts at 0x%06x\n", hx->stats->addr_lowest);
+	printf("address ends at 0x%06x\n", hx->stats->addr_highest);
+
+	return HX_OK;
 }

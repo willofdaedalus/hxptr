@@ -149,6 +149,7 @@ HxptrResult_t hxptr_get_range(hxptr_t *ctx,
 			      uint32_t end,
 			      uint8_t *buf,
 			      uint32_t *len);
+HxptrResult_t hxptr_print_stats(hxptr_t *hx);
 
 // analysis
 HxptrResult_t hxptr_detect_overlaps(hxptr_t *ctx);

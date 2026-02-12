@@ -29,6 +29,8 @@ int main(int ac, char **av)
 		goto cleanup;
 	}
 
+	hxptr_print_stats(hx);
+
 	hxptr_free(hx);
 
 	return 0;
