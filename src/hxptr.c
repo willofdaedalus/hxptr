@@ -8,7 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
+static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
+					 hxptr_record_t *record,
+					 hxptr_parse_state_t *state)
 {
 	uint32_t addr;
 	HxptrResult_t res;
@@ -18,16 +20,18 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 	}
 
 	// no records after eof
-	if (ctx->eof) {
+	if (state->eof) {
 		return HX_ERR_BAD_FILE;
 	}
 
 	switch (record->type) {
 	case IHEX_DATA:
-		if (ctx->cur_type == IHEX_ESA) {
-			addr = ((uint32_t) ctx->segment << 4) + record->address;
-		} else if (ctx->cur_type == IHEX_ELA) {
-			addr = ((uint32_t) ctx->linear << 16) | record->address;
+		if (state->cur_type == IHEX_ESA) {
+			addr = ((uint32_t) state->segment << 4) +
+			       record->address;
+		} else if (state->cur_type == IHEX_ELA) {
+			addr = ((uint32_t) state->linear << 16) |
+			       record->address;
 		} else {
 			addr = record->address;
 		}
@@ -53,7 +57,7 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 
 	case IHEX_EOF:
 		// we already hit eof! no more!
-		if (ctx->eof) {
+		if (state->eof) {
 			return HX_ERR_BAD_FILE;
 		}
 
@@ -62,20 +66,20 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return HX_ERR_INV_RECORD;
 		}
 
-		ctx->eof = 1;
+		state->eof = 1;
 		break;
 
 	case IHEX_ESA:
 		if (record->byte_count != ADDR_COUNT) {
 			return HX_ERR_INV_RECORD;
 		}
-		ctx->segment =
+		state->segment =
 			(uint16_t) ((record->data[0] << 8) | record->data[1]);
-		// ctx->segment = ((uint16_t) record->bytes[0] << 8) |
+		// state->segment = ((uint16_t) record->bytes[0] << 8) |
 		// 	       (uint16_t) record->bytes[1];
 
-		ctx->linear = 0;
-		ctx->cur_type = IHEX_ESA;
+		state->linear = 0;
+		state->cur_type = IHEX_ESA;
 		break;
 
 	case IHEX_ELA:
@@ -83,20 +87,22 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return HX_ERR_INV_RECORD;
 		}
 
-		ctx->linear = ((uint16_t) record->data[0] << 8) |
-			      (uint16_t) record->data[1];
+		state->linear = ((uint16_t) record->data[0] << 8) |
+				(uint16_t) record->data[1];
 
-		ctx->segment = 0;
-		ctx->cur_type = IHEX_ELA;
+		state->segment = 0;
+		state->cur_type = IHEX_ELA;
 		break;
 
 	case IHEX_SSA:
 		if (record->byte_count != START_COUNT || record->address != 0) {
 			return HX_ERR_INV_RECORD;
 		}
-		ctx->cs = (uint16_t) ((record->data[0] << 8) | record->data[1]);
-		ctx->ip = (uint16_t) ((record->data[2] << 8) | record->data[3]);
-		ctx->cur_type = IHEX_SSA;
+		state->cs =
+			(uint16_t) ((record->data[0] << 8) | record->data[1]);
+		state->ip =
+			(uint16_t) ((record->data[2] << 8) | record->data[3]);
+		state->cur_type = IHEX_SSA;
 		break;
 
 	case IHEX_SLA:
@@ -104,9 +110,11 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 			return HX_ERR_INV_RECORD;
 		}
 
-		ctx->cs = (uint16_t) ((record->data[0] << 8) | record->data[1]);
-		ctx->ip = (uint16_t) ((record->data[2] << 8) | record->data[3]);
-		ctx->cur_type = IHEX_SLA;
+		state->cs =
+			(uint16_t) ((record->data[0] << 8) | record->data[1]);
+		state->ip =
+			(uint16_t) ((record->data[2] << 8) | record->data[3]);
+		state->cur_type = IHEX_SLA;
 		break;
 
 	default:
@@ -192,6 +200,7 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	uint32_t linenum = 1;
 	HxptrResult_t res;
 	hxptr_record_t record = {0};
+	hxptr_parse_state_t state = {0};
 
 	if (!ctx || !path) {
 		return HX_ERR_NULL;
@@ -209,21 +218,18 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 
 	ctx->filename = strdup(filename);
 	if (!ctx->filename) {
-		printf("bad alloc\n");
 		return HX_ERR_BAD_ALLOC;
 	}
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
 		res = hex_line_to_record(buf, &record);
 		if (res != HX_OK) {
-			printf("%d\n", res);
 			return res;
 		}
 
 		record.linenum = linenum;
-		res = hxptr_append_record(ctx, &record);
+		res = hxptr_append_record(ctx, &record, &state);
 		if (res != HX_OK) {
-			printf("%d\n", res);
 			goto cleanup;
 		}
 
@@ -281,8 +287,8 @@ HxptrResult_t hxptr_print_stats(hxptr_t *hx)
 	printf("read %u total records\n", hx->stats->total_records);
 	printf("read %u total overlaps\n", hx->stats->total_overlaps);
 	printf("read %u total gaps\n", hx->stats->total_gaps);
-	printf("address starts at 0x%06x\n", hx->stats->addr_lowest);
-	printf("address ends at 0x%06x\n", hx->stats->addr_highest);
+	printf("address starts at 0x%08x\n", hx->stats->addr_lowest);
+	printf("address ends at 0x%08x\n", hx->stats->addr_highest);
 
 	return HX_OK;
 }

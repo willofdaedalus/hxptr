@@ -119,21 +119,20 @@ typedef struct {
 } mcu_profile_t;
 
 typedef struct {
-	sparse_memory_t *memory;
-	reports_t *reports;
-	mcu_profile_t *profile;
-	char *filename;
-
-	hxptr_stats_t *stats;
-
 	uint32_t segment;
 	uint32_t linear;
 	uint32_t cs;
 	uint32_t ip;
-
-	uint32_t diags_count;
-	uint8_t eof;
 	uint8_t cur_type;
+	uint8_t eof;
+} hxptr_parse_state_t;
+
+typedef struct {
+	sparse_memory_t *memory;
+	reports_t *reports;
+	mcu_profile_t *profile;
+	hxptr_stats_t *stats;
+	char *filename;
 } hxptr_t;
 
 // lifecycle
@@ -165,5 +164,33 @@ HxptrResult_t hxptr_detect_gaps(hxptr_t *ctx, uint32_t threshold);
 // 				     uint8_t **first_data,
 // 				     uint8_t **second_data,
 // 				     uint32_t *size);
+
+const char *hxptr_strerror(HxptrResult_t err)
+{
+	switch (err) {
+	case HX_OK:
+		return "ok";
+	case HX_ERR_INV_RECORD:
+		return "invalid record";
+	case HX_ERR_NULL:
+		return "null argument";
+	case HX_ERR_NO_RECORD:
+		return "no record found";
+	case HX_ERR_UKN_TYPE:
+		return "unknown record type";
+	case HX_ERR_BAD_CHKSM:
+		return "bad checksum";
+	case HX_ERR_BAD_APPEND:
+		return "bad append";
+	case HX_ERR_BAD_FILE:
+		return "bad or unreadable file";
+	case HX_ERR_BAD_ALLOC:
+		return "allocation failed";
+	case HX_ERR_NOT_FINALIZED:
+		return "memory not finalized";
+	default:
+		return "unknown error";
+	}
+}
 
 #endif // HXPTR_H
