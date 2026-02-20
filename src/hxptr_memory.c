@@ -1,6 +1,5 @@
 #include "hxptr_memory.h"
 #include "hxptr_diagnostics.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,7 +39,7 @@ HxptrResult_t sm_append_record(sparse_memory_t *mem,
 		if (!temp) {
 			// TODO; make sure to free this from the caller side of
 			// things
-			return HX_ERR_NULL;
+			return HX_ERR_BAD_ALLOC;
 		}
 		mem->entries = temp;
 	}

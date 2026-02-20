@@ -18,7 +18,7 @@ make_region(const char *name, uint32_t start, uint32_t end, uint8_t protected)
 		return NULL;
 	}
 
-	snprintf(region->name, strlen(name) - 1, "%s", name);
+	snprintf(region->name, sizeof(region->name), "%s", name);
 	// strncpy(region->name, name, strlen(name));
 	region->start = start;
 	region->end = end;

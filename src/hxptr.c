@@ -10,7 +10,6 @@
 
 static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 {
-	static uint8_t lowest_set = 0;
 	uint32_t addr;
 	HxptrResult_t res;
 
@@ -39,9 +38,8 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx, hxptr_record_t *record)
 		}
 
 		// track highest and lowest addr
-		if (!lowest_set) {
+		if (addr < ctx->stats->addr_lowest) {
 			ctx->stats->addr_lowest = addr;
-			lowest_set = 1;
 		}
 
 		if (addr > ctx->stats->addr_highest) {
@@ -180,6 +178,8 @@ hxptr_t *hxptr_init(void)
 		free(hx);
 		return NULL;
 	}
+
+	hx->stats->addr_lowest = UINT32_MAX;
 
 	return hx;
 }
