@@ -8,6 +8,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct {
+	uint32_t segment;
+	uint32_t linear;
+	uint32_t cs;
+	uint32_t ip;
+	uint8_t cur_type;
+	uint8_t eof;
+} hxptr_parse_state_t;
+
 static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
 					 hxptr_record_t *record,
 					 hxptr_parse_state_t *state)
@@ -15,7 +24,7 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
 	uint32_t addr;
 	HxptrResult_t res;
 
-	if (!ctx || !record) {
+	if (!ctx || !record || !state) {
 		return HX_ERR_NULL;
 	}
 
@@ -192,6 +201,35 @@ hxptr_t *hxptr_init(void)
 	return hx;
 }
 
+const char *hxptr_strerror(HxptrResult_t err)
+{
+	switch (err) {
+	case HX_OK:
+		return "ok";
+	case HX_ERR_INV_RECORD:
+		return "invalid record";
+	case HX_ERR_NULL:
+		return "null argument";
+	case HX_ERR_NO_RECORD:
+		return "no record found";
+	case HX_ERR_UKN_TYPE:
+		return "unknown record type";
+	case HX_ERR_BAD_CHKSM:
+		return "bad checksum";
+	case HX_ERR_BAD_APPEND:
+		return "bad append";
+	case HX_ERR_BAD_FILE:
+		return "bad or unreadable file";
+	case HX_ERR_BAD_ALLOC:
+		return "allocation failed";
+	case HX_ERR_NOT_FINALIZED:
+		return "memory not finalized";
+	default:
+		return "unknown error";
+	}
+}
+
+
 HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 {
 	FILE *fp;
@@ -277,7 +315,7 @@ HxptrResult_t hxptr_finalize_memory(hxptr_t *hx)
 	hx->memory->finalized = 1;
 
 	// more should be done here
-	return sm_analyze(hx, 128);
+	return sm_analyze(hx, GAP_THRESHOLD_DEFAULT);
 }
 
 HxptrResult_t hxptr_print_stats(hxptr_t *hx)

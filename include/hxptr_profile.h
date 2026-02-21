@@ -4,7 +4,7 @@
 #include "hxptr.h"
 
 // mcu_profile_t profile_load(const char *path);
-mcu_profile_t *profile_load(void);
+mcu_profile_t *profile_load(const char *path);
 void mcu_profile_free(mcu_profile_t *prof);
 
 #endif

@@ -3,10 +3,16 @@
 
 #include <stdint.h>
 
+#define MAX_MEMORY_BLOCKS 16
+#define MAX_REGIONS 16
+#define MAX_MCU_NAME_LEN 32
+#define GAP_THRESHOLD_DEFAULT 128
 #define ESA_FACTOR 16
 #define ADDR_COUNT 2
 #define START_COUNT 4
-#define MAX_BYTES 32
+#define MAX_BYTES 0xff
+#define DISP_MAX_WIDTH 0x20
+#define MAX_DIRECTIVE_LEN 0x10
 
 typedef enum {
 	HX_OK = 0,
@@ -19,6 +25,8 @@ typedef enum {
 	HX_ERR_BAD_FILE = -7,
 	HX_ERR_BAD_ALLOC = -8,
 	HX_ERR_NOT_FINALIZED = -9,
+	HX_ERR_PARSE = -10,
+	HX_ERR_OVERFLOW = -11,
 } HxptrResult_t;
 
 typedef enum {
@@ -31,7 +39,7 @@ typedef enum {
 
 typedef enum {
 	IHEX_DATA = 0x0, // data
-	IHEX_EOF = 0x1,	 // end of file
+	IHEX_EOF = 0x1,	 // size of file
 	IHEX_ESA = 0x2,	 // extended segment address
 	IHEX_SSA = 0x3,	 // start segment address
 	IHEX_ELA = 0x4,	 // extended linear address
@@ -45,6 +53,13 @@ typedef enum {
 	DIAG_PROTECTED_REGION
 } DiagnosticType_t;
 
+typedef enum {
+	MEM_FLASH,
+	MEM_RAM,
+	MEM_EEPROM,
+	MEM_ROM,
+	MEM_UNKNOWN,
+} MemoryType_t;
 
 typedef struct {
 	uint32_t address;	  // contains extended hi and lo bytes
@@ -82,7 +97,7 @@ typedef struct {
 
 
 typedef struct {
-	uint8_t data[32];
+	uint8_t data[MAX_BYTES];
 	uint32_t linenum;
 	uint16_t address;
 	uint16_t byte_sum; // fast way to detect gaps
@@ -93,7 +108,6 @@ typedef struct {
 
 typedef struct {
 	uint32_t total_bytes;
-	uint32_t total_ranges;
 	uint32_t total_overlaps;
 	uint32_t total_gaps;
 	uint32_t total_records;
@@ -103,29 +117,27 @@ typedef struct {
 } hxptr_stats_t;
 
 typedef struct {
+	MemoryType_t type;
+	uint32_t start;
+	uint32_t size;
+} profile_memory_t;
+
+typedef struct {
 	char name[16];
 	uint32_t start;
-	uint32_t end;
+	uint32_t size;
 	uint8_t protected;
 } profile_region_t;
 
 typedef struct {
-	char name[32];
-	char architecture[16];
-	uint32_t flash_start;
-	uint32_t flash_size;
+	char name[MAX_MCU_NAME_LEN];
+	char arch[MAX_MCU_NAME_LEN];
+	char vendor[MAX_MCU_NAME_LEN];
+	profile_memory_t *mem_blocks;
 	profile_region_t *regions;
-	uint8_t num_regions;
+	uint8_t region_count;
+	uint8_t mem_count;
 } mcu_profile_t;
-
-typedef struct {
-	uint32_t segment;
-	uint32_t linear;
-	uint32_t cs;
-	uint32_t ip;
-	uint8_t cur_type;
-	uint8_t eof;
-} hxptr_parse_state_t;
 
 typedef struct {
 	sparse_memory_t *memory;
@@ -145,14 +157,12 @@ HxptrResult_t hxptr_finalize_memory(hxptr_t *ctx);
 HxptrResult_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
 HxptrResult_t hxptr_get_range(hxptr_t *ctx,
 			      uint32_t start,
-			      uint32_t end,
+			      uint32_t size,
 			      uint8_t *buf,
 			      uint32_t *len);
 HxptrResult_t hxptr_print_stats(hxptr_t *hx);
 
-// analysis
-HxptrResult_t hxptr_detect_overlaps(hxptr_t *ctx);
-HxptrResult_t hxptr_detect_gaps(hxptr_t *ctx, uint32_t threshold);
+const char *hxptr_strerror(HxptrResult_t err);
 
 // results query
 // void sm_get_stats(hxptr_t *ctx, hxptr_stats_t *out);
@@ -164,33 +174,5 @@ HxptrResult_t hxptr_detect_gaps(hxptr_t *ctx, uint32_t threshold);
 // 				     uint8_t **first_data,
 // 				     uint8_t **second_data,
 // 				     uint32_t *size);
-
-const char *hxptr_strerror(HxptrResult_t err)
-{
-	switch (err) {
-	case HX_OK:
-		return "ok";
-	case HX_ERR_INV_RECORD:
-		return "invalid record";
-	case HX_ERR_NULL:
-		return "null argument";
-	case HX_ERR_NO_RECORD:
-		return "no record found";
-	case HX_ERR_UKN_TYPE:
-		return "unknown record type";
-	case HX_ERR_BAD_CHKSM:
-		return "bad checksum";
-	case HX_ERR_BAD_APPEND:
-		return "bad append";
-	case HX_ERR_BAD_FILE:
-		return "bad or unreadable file";
-	case HX_ERR_BAD_ALLOC:
-		return "allocation failed";
-	case HX_ERR_NOT_FINALIZED:
-		return "memory not finalized";
-	default:
-		return "unknown error";
-	}
-}
 
 #endif // HXPTR_H
