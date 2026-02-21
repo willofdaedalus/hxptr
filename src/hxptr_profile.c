@@ -1,6 +1,7 @@
 #include "hxptr_profile.h"
 #include "hxptr.h"
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,36 +47,38 @@ static char *next_token(char **line)
 static int32_t parse_number(const char *str)
 {
 	char *endptr;
-	uint32_t val = 0;
+	unsigned long val;
 
-	if (!str) {
+	if (!str || *str == '\0') {
 		return -1;
 	}
 
-	switch (str[1]) {
-	case 'X':
-	case 'x':
-		val = strtoul(str, &endptr, 16);
-		break;
+	errno = 0;
 
-	default:
-		val = strtoul(str, &endptr, 10);
-	}
-
-	if (!endptr) {
+	val = strtoul(str, &endptr, 0);
+	if (endptr == str) {
 		return -1;
 	}
 
-	return val;
+	if (*endptr != '\0') {
+		return -1;
+	}
+
+	// overflow or other conversion error
+	if (errno == ERANGE || val > INT32_MAX) {
+		return -1;
+	}
+
+	return (int32_t) val;
 }
 
-static HxptrResult_t parse_mcu_entry(mcu_profile_t *pf, char *line)
+static HxptrResult_t parse_mcu_entry(mcu_profile_t *pf, char **line)
 {
 	char *name, *arch;
 
 	// mcu <name> <arch>
-	name = next_token(&line);
-	arch = next_token(&line);
+	name = next_token(line);
+	arch = next_token(line);
 
 	if (!name || !arch) {
 		return HX_ERR_PARSE;
@@ -102,15 +105,16 @@ static MemoryType_t str_mem_type(const char *str)
 	}
 }
 
-static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char *line)
+static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char **line)
 {
+	int32_t val;
 	char *type, *start_str, *size_str;
 	profile_memory_t mem = {0};
 
 	// memory <type> <start> <size>
-	type = next_token(&line);
-	start_str = next_token(&line);
-	size_str = next_token(&line);
+	type = next_token(line);
+	start_str = next_token(line);
+	size_str = next_token(line);
 
 	if (!type || !start_str || !size_str) {
 		return HX_ERR_PARSE;
@@ -123,11 +127,17 @@ static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char *line)
 	}
 
 	// parse the addresses
-	mem.start = parse_number(start_str);
-	mem.size = parse_number(size_str);
-	if (mem.start < 0 || mem.size < 0) {
+	val = parse_number(start_str);
+	if (val < 0) {
 		return HX_ERR_PARSE;
 	}
+	mem.start = (uint32_t) val;
+
+	val = parse_number(size_str);
+	if (val < 0) {
+		return HX_ERR_PARSE;
+	}
+	mem.size = (uint32_t) val;
 
 	// add to the profile
 	if (pf->mem_count >= MAX_MEMORY_BLOCKS) {
@@ -139,24 +149,31 @@ static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char *line)
 	return HX_OK;
 }
 
-static HxptrResult_t parse_vendor_entry(mcu_profile_t *pf, char *line)
+static HxptrResult_t parse_vendor_entry(mcu_profile_t *pf, char **line)
 {
-	(void) pf;
-	(void) line;
+	char *vendor;
+
+	vendor = next_token(line);
+
+	if (!vendor) {
+		return HX_ERR_PARSE;
+	}
+
+	strncpy(pf->vendor, vendor, sizeof(pf->vendor) - 1);
 
 	return HX_OK;
 }
 
-static HxptrResult_t parse_region_entry(mcu_profile_t *pf, char *line)
+static HxptrResult_t parse_region_entry(mcu_profile_t *pf, char **line)
 {
 	char *name, *start_str, *end_str, *protected;
 	profile_region_t reg = {0};
 
 	// region <name> <start> <end> [protected]
-	name = next_token(&line);
-	start_str = next_token(&line);
-	end_str = next_token(&line);
-	protected = next_token(&line);
+	name = next_token(line);
+	start_str = next_token(line);
+	end_str = next_token(line);
+	protected = next_token(line);
 
 	if (!name || !start_str || !end_str) {
 		return HX_ERR_PARSE;
@@ -187,14 +204,13 @@ static HxptrResult_t parse_region_entry(mcu_profile_t *pf, char *line)
 	return HX_OK;
 }
 
-mcu_profile_t *profile_load(const char *path)
+mcu_profile_t *profile_load(const char *path, HxptrResult_t *res)
 {
 	mcu_profile_t *prof;
 	FILE *fp;
-	char *directive;
-	char line[256];
+	char *directive, *unexpected;
+	char line[64];
 	int line_num = 0;
-	HxptrResult_t res;
 
 	fp = fopen(path, "r");
 	if (!fp) {
@@ -233,13 +249,13 @@ mcu_profile_t *profile_load(const char *path)
 
 		// dispatch to parser
 		if (strncmp(directive, "mcu", 3) == 0) {
-			res = parse_mcu_entry(prof, p);
+			*res = parse_mcu_entry(prof, &p);
 		} else if (strncmp(directive, "vendor", 6) == 0) {
-			res = parse_vendor_entry(prof, p);
+			*res = parse_vendor_entry(prof, &p);
 		} else if (strncmp(directive, "memory", 6) == 0) {
-			res = parse_memory_entry(prof, p);
+			*res = parse_memory_entry(prof, &p);
 		} else if (strncmp(directive, "region", 6) == 0) {
-			res = parse_region_entry(prof, p);
+			*res = parse_region_entry(prof, &p);
 		} else {
 			fprintf(stderr,
 				"Line %d: Unknown directive '%s'\n",
@@ -248,23 +264,32 @@ mcu_profile_t *profile_load(const char *path)
 			continue;
 		}
 
-		if (res != HX_OK) {
+		if (*res != HX_OK) {
 			fprintf(stderr,
-				"Line %d: Parse error in '%s' "
-				"directive\n",
+				"Line %d: Parse error in '%s' directive\n",
 				line_num,
 				directive);
 			goto cleanup_mem_blocks;
 		}
-	}
 
-	fclose(fp);
+		// check for extra tokens that shouldn't be there
+		unexpected = next_token(&p);
+		if (unexpected) {
+			fprintf(stderr,
+				"Line %d: Unexpected tokens after directives\n",
+				line_num);
+			*res = HX_ERR_BAD_CONFIG;
+			goto cleanup_mem_blocks;
+		}
+	}
 
 	// validate required fields
 	if (prof->name[0] == '\0' || prof->mem_count == 0) {
 		fprintf(stderr, "Profile missing required fields\n");
 		goto cleanup_mem_blocks;
 	}
+
+	fclose(fp);
 
 	return prof;
 
@@ -287,5 +312,6 @@ void mcu_profile_free(mcu_profile_t *prof)
 	}
 
 	free(prof->regions);
+	free(prof->mem_blocks);
 	free(prof);
 }

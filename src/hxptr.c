@@ -187,14 +187,14 @@ hxptr_t *hxptr_init(void)
 		return NULL;
 	}
 
-	hx->profile = profile_load();
-	if (!hx->profile) {
-		free(hx->reports);
-		free(hx->memory);
-		free(hx->stats);
-		free(hx);
-		return NULL;
-	}
+	// hx->profile = profile_load();
+	// if (!hx->profile) {
+	// 	free(hx->reports);
+	// 	free(hx->memory);
+	// 	free(hx->stats);
+	// 	free(hx);
+	// 	return NULL;
+	// }
 
 	hx->stats->addr_lowest = UINT32_MAX;
 
@@ -224,6 +224,12 @@ const char *hxptr_strerror(HxptrResult_t err)
 		return "allocation failed";
 	case HX_ERR_NOT_FINALIZED:
 		return "memory not finalized";
+	case HX_ERR_PARSE:
+		return "parsing issues";
+	case HX_ERR_OVERFLOW:
+		return "too many memory/regions";
+	case HX_ERR_BAD_CONFIG:
+		return "unexpected symbol after directives";
 	default:
 		return "unknown error";
 	}
