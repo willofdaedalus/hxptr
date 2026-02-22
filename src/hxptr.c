@@ -11,8 +11,8 @@
 typedef struct {
 	uint32_t segment;
 	uint32_t linear;
-	uint32_t cs;
-	uint32_t ip;
+	uint32_t code_segment;
+	uint32_t instr_pointer;
 	uint8_t cur_type;
 	uint8_t eof;
 } hxptr_parse_state_t;
@@ -107,9 +107,9 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
 		if (record->byte_count != START_COUNT || record->address != 0) {
 			return HX_ERR_INV_RECORD;
 		}
-		state->cs =
+		state->code_segment =
 			(uint16_t) ((record->data[0] << 8) | record->data[1]);
-		state->ip =
+		state->instr_pointer =
 			(uint16_t) ((record->data[2] << 8) | record->data[3]);
 		state->cur_type = IHEX_SSA;
 		break;
@@ -119,9 +119,9 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
 			return HX_ERR_INV_RECORD;
 		}
 
-		state->cs =
+		state->code_segment =
 			(uint16_t) ((record->data[0] << 8) | record->data[1]);
-		state->ip =
+		state->instr_pointer =
 			(uint16_t) ((record->data[2] << 8) | record->data[3]);
 		state->cur_type = IHEX_SLA;
 		break;
@@ -251,6 +251,8 @@ const char *hxptr_strerror(HxptrResult_t err)
 	case HX_ERR_BAD_PROFILE:
 		return "couldn't open profile description file; double check "
 		       "path";
+	case HX_ERR_NO_EOF:
+		return "no eof in hex file. exiting";
 	default:
 		return "unknown error";
 	}
@@ -290,6 +292,13 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
 		res = hex_line_to_record(buf, &record);
 		if (res != HX_OK) {
+			if (res == HX_ERR_INV_RECORD) {
+				fprintf(stderr,
+					"line %d: byte count %d doesn't match "
+					"actual data bytes\n",
+					linenum,
+					record.byte_count);
+			}
 			goto cleanup;
 		}
 
@@ -300,6 +309,11 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		}
 
 		linenum++;
+	}
+
+	if (state.eof != 1) {
+		res = HX_ERR_NO_EOF;
+		goto cleanup;
 	}
 
 	fclose(fp);

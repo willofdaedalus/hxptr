@@ -25,17 +25,18 @@ typedef enum {
 	HX_ERR_BAD_FILE = -7,
 	HX_ERR_BAD_ALLOC = -8,
 	HX_ERR_NOT_FINALIZED = -9,
+	HX_ERR_NO_EOF = -10,
 
 	// parser error codes
-	HX_ERR_PARSE = -10,
-	HX_ERR_PARSE_REGION = -11,
-	HX_ERR_PARSE_MEMORY = -12,
-	HX_ERR_PARSE_DEETS = -13,
-	HX_ERR_PARSE_BAD_VALUE = -14,
-	HX_ERR_OVERFLOW = -15,
-	HX_ERR_UNKN_MEM_TYPE = -16,
-	HX_ERR_BAD_CONFIG = -17,
-	HX_ERR_BAD_PROFILE = -18,
+	HX_ERR_PARSE = -30,
+	HX_ERR_PARSE_REGION = -31,
+	HX_ERR_PARSE_MEMORY = -32,
+	HX_ERR_PARSE_DEETS = -33,
+	HX_ERR_PARSE_BAD_VALUE = -34,
+	HX_ERR_OVERFLOW = -35,
+	HX_ERR_UNKN_MEM_TYPE = -36,
+	HX_ERR_BAD_CONFIG = -37,
+	HX_ERR_BAD_PROFILE = -38,
 } HxptrResult_t;
 
 typedef enum {
@@ -65,14 +66,6 @@ typedef enum {
 	DIAG_OUT_OF_BOUNDS,
 	DIAG_PROTECTED_REGION
 } DiagnosticType_t;
-
-typedef enum {
-	MEM_FLASH,
-	MEM_RAM,
-	MEM_EEPROM,
-	MEM_ROM,
-	MEM_UNKNOWN,
-} MemoryType_t;
 
 typedef struct {
 	uint32_t address;	  // contains extended hi and lo bytes
@@ -130,7 +123,7 @@ typedef struct {
 } hxptr_stats_t;
 
 typedef struct {
-	MemoryType_t type;
+	char type[16];
 	uint32_t start;
 	uint32_t size;
 } profile_memory_t;

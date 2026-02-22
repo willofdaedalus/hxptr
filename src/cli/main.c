@@ -18,11 +18,11 @@ int main(int ac, char **av)
 		return -1;
 	}
 
-	res = hxptr_load_profile(hx, "./profiles/atmega328p.prof", &line_num);
+	res = hxptr_load_profile(hx, "./profiles/rp2040.prof", &line_num);
 	if (res != HX_OK) {
 		if (res != HX_ERR_BAD_PROFILE) {
 			fprintf(stderr,
-				"line %d: %s",
+				"line %d: %s\n",
 				line_num,
 				hxptr_strerror(res));
 		} else {
@@ -51,6 +51,7 @@ int main(int ac, char **av)
 	return 0;
 
 cleanup:
+	fprintf(stderr, "hxptr: %s\n", hxptr_strerror(res));
 	hxptr_free(hx);
 	return res;
 }

@@ -92,21 +92,6 @@ static HxptrResult_t parse_mcu_entry(mcu_profile_t *pf, char **line)
 	return HX_OK;
 }
 
-static MemoryType_t str_mem_type(const char *str)
-{
-	if (strcmp("flash", str) == 0) {
-		return MEM_FLASH;
-	} else if (strcmp("ram", str) == 0) {
-		return MEM_RAM;
-	} else if (strcmp("rom", str) == 0) {
-		return MEM_ROM;
-	} else if (strcmp("eeprom", str) == 0) {
-		return MEM_EEPROM;
-	} else {
-		return MEM_UNKNOWN;
-	}
-}
-
 static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char **line)
 {
 	uint8_t ok = 0;
@@ -123,10 +108,7 @@ static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char **line)
 	}
 
 	// store the type
-	mem.type = str_mem_type(type);
-	if (mem.type == MEM_UNKNOWN) {
-		return HX_ERR_UNKN_MEM_TYPE;
-	}
+	strncpy(mem.type, type, sizeof(mem.type) - 1);
 
 	// parse the addresses
 	mem.start = parse_number(start_str, &ok);
