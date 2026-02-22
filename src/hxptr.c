@@ -168,37 +168,45 @@ hxptr_t *hxptr_init(void)
 
 	hx->memory = sm_init();
 	if (!hx->memory) {
-		free(hx);
-		return NULL;
+		goto cleanup_hx;
 	}
 
 	hx->stats = calloc(1, sizeof(hxptr_stats_t));
 	if (!hx->stats) {
-		free(hx->memory);
-		free(hx);
-		return NULL;
+		goto cleanup_mem;
 	}
 
 	hx->reports = reports_init();
 	if (!hx->reports) {
-		free(hx->memory);
-		free(hx->stats);
-		free(hx);
-		return NULL;
+		goto cleanup_stats;
 	}
-
-	// hx->profile = profile_load();
-	// if (!hx->profile) {
-	// 	free(hx->reports);
-	// 	free(hx->memory);
-	// 	free(hx->stats);
-	// 	free(hx);
-	// 	return NULL;
-	// }
-
 	hx->stats->addr_lowest = UINT32_MAX;
 
 	return hx;
+
+cleanup_stats:
+	free(hx->stats);
+cleanup_mem:
+	free(hx->memory);
+cleanup_hx:
+	free(hx);
+
+	return NULL;
+}
+
+HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path, int *line_num)
+{
+	HxptrResult_t res;
+	if (!ctx) {
+		return HX_ERR_NULL;
+	}
+
+	ctx->profile = mcu_profile_load(path, &res, line_num);
+	if (!ctx->profile) {
+		return res;
+	}
+
+	return HX_OK;
 }
 
 const char *hxptr_strerror(HxptrResult_t err)

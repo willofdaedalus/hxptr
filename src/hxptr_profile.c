@@ -94,13 +94,13 @@ static HxptrResult_t parse_mcu_entry(mcu_profile_t *pf, char **line)
 
 static MemoryType_t str_mem_type(const char *str)
 {
-	if (strncmp("flash", str, 5) == 0) {
+	if (strcmp("flash", str) == 0) {
 		return MEM_FLASH;
-	} else if (strncmp("ram", str, 3) == 0) {
+	} else if (strcmp("ram", str) == 0) {
 		return MEM_RAM;
-	} else if (strncmp("rom", str, 3) == 0) {
+	} else if (strcmp("rom", str) == 0) {
 		return MEM_ROM;
-	} else if (strncmp("eeprom", str, 6) == 0) {
+	} else if (strcmp("eeprom", str) == 0) {
 		return MEM_EEPROM;
 	} else {
 		return MEM_UNKNOWN;
@@ -208,7 +208,8 @@ static HxptrResult_t parse_region_entry(mcu_profile_t *pf, char **line)
 	return HX_OK;
 }
 
-mcu_profile_t *profile_load(const char *path, HxptrResult_t *res)
+mcu_profile_t *
+mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 {
 	mcu_profile_t *prof;
 	FILE *fp;
@@ -252,27 +253,24 @@ mcu_profile_t *profile_load(const char *path, HxptrResult_t *res)
 		}
 
 		// dispatch to parser
-		if (strncmp(directive, "mcu", 3) == 0) {
+		if (strcmp(directive, "mcu") == 0) {
 			*res = parse_mcu_entry(prof, &p);
-		} else if (strncmp(directive, "vendor", 6) == 0) {
+		} else if (strcmp(directive, "vendor") == 0) {
 			*res = parse_vendor_entry(prof, &p);
-		} else if (strncmp(directive, "memory", 6) == 0) {
+		} else if (strcmp(directive, "memory") == 0) {
 			*res = parse_memory_entry(prof, &p);
-		} else if (strncmp(directive, "region", 6) == 0) {
+		} else if (strcmp(directive, "region") == 0) {
 			*res = parse_region_entry(prof, &p);
 		} else {
 			fprintf(stderr,
-				"Line %d: Unknown directive '%s'\n",
+				"line %d: unknown directive '%s'\n",
 				line_num,
 				directive);
 			continue;
 		}
 
 		if (*res != HX_OK) {
-			fprintf(stderr,
-				"Line %d: Parse error in '%s' directive\n",
-				line_num,
-				directive);
+			*out_num = line_num;
 			goto cleanup_mem_blocks;
 		}
 
@@ -280,7 +278,7 @@ mcu_profile_t *profile_load(const char *path, HxptrResult_t *res)
 		unexpected = next_token(&p);
 		if (unexpected && unexpected[0] != '#') {
 			fprintf(stderr,
-				"Line %d: Unexpected tokens after directives\n",
+				"line %d: unexpected tokens after directives\n",
 				line_num);
 			*res = HX_ERR_BAD_CONFIG;
 			goto cleanup_mem_blocks;
@@ -289,7 +287,7 @@ mcu_profile_t *profile_load(const char *path, HxptrResult_t *res)
 
 	// validate required fields
 	if (prof->name[0] == '\0' || prof->mem_count == 0) {
-		fprintf(stderr, "Profile missing required fields\n");
+		fprintf(stderr, "profile missing required fields\n");
 		goto cleanup_mem_blocks;
 	}
 
