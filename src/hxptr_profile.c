@@ -299,6 +299,7 @@ mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 
 cleanup_mem_blocks:
 	free(prof->mem_blocks);
+	free(prof->regions);
 cleanup_prof:
 	free(prof);
 cleanup_fp:

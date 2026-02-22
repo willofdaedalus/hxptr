@@ -18,7 +18,7 @@ int main(int ac, char **av)
 		return -1;
 	}
 
-	res = hxptr_load_profile(hx, "some_path", &line_num);
+	res = hxptr_load_profile(hx, "./profiles/atmega328p.prof", &line_num);
 	if (res != HX_OK) {
 		if (res != HX_ERR_BAD_PROFILE) {
 			fprintf(stderr,
@@ -29,14 +29,14 @@ int main(int ac, char **av)
 			fprintf(stderr, "%s\n", hxptr_strerror(res));
 		}
 
-		return res;
+		goto cleanup;
 	}
 
 	res = hxptr_load_file(hx, *++av);
 	if (res != HX_OK) {
 		// TODO; do extra checks like displaying all errors collected in
 		// the context
-		return -1;
+		goto cleanup;
 	}
 
 	res = hxptr_finalize_memory(hx);
@@ -52,5 +52,5 @@ int main(int ac, char **av)
 
 cleanup:
 	hxptr_free(hx);
-	return -1;
+	return res;
 }
