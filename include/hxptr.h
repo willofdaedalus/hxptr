@@ -27,6 +27,7 @@ typedef enum {
 	HX_ERR_NOT_FINALIZED = -9,
 	HX_ERR_PARSE = -10,
 	HX_ERR_OVERFLOW = -11,
+	HX_ERR_BAD_CONFIG = -12,
 } HxptrResult_t;
 
 typedef enum {
