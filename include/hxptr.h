@@ -25,10 +25,21 @@ typedef enum {
 	HX_ERR_BAD_FILE = -7,
 	HX_ERR_BAD_ALLOC = -8,
 	HX_ERR_NOT_FINALIZED = -9,
+
+	// parser error codes
 	HX_ERR_PARSE = -10,
-	HX_ERR_OVERFLOW = -11,
-	HX_ERR_BAD_CONFIG = -12,
+	HX_ERR_PARSE_REGION = -11,
+	HX_ERR_PARSE_MEMORY = -12,
+	HX_ERR_PARSE_DEETS = -13,
+	HX_ERR_PARSE_BAD_VALUE = -14,
+	HX_ERR_OVERFLOW = -15,
+	HX_ERR_UNKN_MEM_TYPE = -16,
+	HX_ERR_BAD_CONFIG = -17,
 } HxptrResult_t;
+
+typedef enum {
+	PR_OK = 0,
+} ParserResult_t;
 
 typedef enum {
 	LEVEL_INFO,
@@ -126,7 +137,7 @@ typedef struct {
 typedef struct {
 	char name[16];
 	uint32_t start;
-	uint32_t size;
+	uint32_t end;
 	uint8_t protected;
 } profile_region_t;
 

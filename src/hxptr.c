@@ -230,6 +230,16 @@ const char *hxptr_strerror(HxptrResult_t err)
 		return "too many memory/regions";
 	case HX_ERR_BAD_CONFIG:
 		return "unexpected symbol after directives";
+	case HX_ERR_PARSE_REGION:
+		return "bad region definition; expected region <name> <start> "
+		       "<end> [protected]";
+	case HX_ERR_PARSE_MEMORY:
+		return "bad memory definition; expected memory <type> <start> "
+		       "<end>";
+	case HX_ERR_UNKN_MEM_TYPE:
+		return "bad memory type; options are flash, ram, rom, eeprom";
+	case HX_ERR_PARSE_DEETS:
+		return "bad details; expected mcu <name> <architecture>";
 	default:
 		return "unknown error";
 	}
