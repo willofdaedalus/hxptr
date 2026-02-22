@@ -62,7 +62,7 @@ static uint32_t parse_number(const char *str, uint8_t *ok)
 	}
 
 	// overflow error
-	if (val > INT32_MAX) {
+	if (val > UINT32_MAX) {
 		goto fail;
 	}
 

@@ -283,13 +283,14 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 
 	ctx->filename = strdup(filename);
 	if (!ctx->filename) {
-		return HX_ERR_BAD_ALLOC;
+		res = HX_ERR_BAD_ALLOC;
+		goto cleanup;
 	}
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
 		res = hex_line_to_record(buf, &record);
 		if (res != HX_OK) {
-			return res;
+			goto cleanup;
 		}
 
 		record.linenum = linenum;
