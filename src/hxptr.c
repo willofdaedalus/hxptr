@@ -248,6 +248,9 @@ const char *hxptr_strerror(HxptrResult_t err)
 		return "bad memory type; options are flash, ram, rom, eeprom";
 	case HX_ERR_PARSE_DEETS:
 		return "bad details; expected mcu <name> <architecture>";
+	case HX_ERR_BAD_PROFILE:
+		return "couldn't open profile description file; double check "
+		       "path";
 	default:
 		return "unknown error";
 	}

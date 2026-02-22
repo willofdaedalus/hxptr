@@ -35,6 +35,7 @@ typedef enum {
 	HX_ERR_OVERFLOW = -15,
 	HX_ERR_UNKN_MEM_TYPE = -16,
 	HX_ERR_BAD_CONFIG = -17,
+	HX_ERR_BAD_PROFILE = -18,
 } HxptrResult_t;
 
 typedef enum {
@@ -173,6 +174,7 @@ HxptrResult_t hxptr_get_range(hxptr_t *ctx,
 			      uint8_t *buf,
 			      uint32_t *len);
 HxptrResult_t hxptr_print_stats(hxptr_t *hx);
+HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path, int *line_num);
 
 const char *hxptr_strerror(HxptrResult_t err);
 

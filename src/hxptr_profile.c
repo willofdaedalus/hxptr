@@ -219,6 +219,8 @@ mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 
 	fp = fopen(path, "r");
 	if (!fp) {
+		*res = HX_ERR_BAD_PROFILE;
+		*out_num = 1;
 		return NULL;
 	}
 

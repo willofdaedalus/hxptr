@@ -3,8 +3,9 @@
 
 int main(int ac, char **av)
 {
-	hxptr_t *hx;
+	int line_num;
 	HxptrResult_t res;
+	hxptr_t *hx;
 
 	if (ac < 2) {
 		fprintf(stderr, "hxptr: hxptr <file.hex>\n");
@@ -13,8 +14,22 @@ int main(int ac, char **av)
 
 	hx = hxptr_init();
 	if (!hx) {
-		fprintf(stderr, "hxptr: error initializing hxptr ctx\n");
+		fprintf(stderr, "hxptr: error initializing hxptr object\n");
 		return -1;
+	}
+
+	res = hxptr_load_profile(hx, "some_path", &line_num);
+	if (res != HX_OK) {
+		if (res != HX_ERR_BAD_PROFILE) {
+			fprintf(stderr,
+				"line %d: %s",
+				line_num,
+				hxptr_strerror(res));
+		} else {
+			fprintf(stderr, "%s\n", hxptr_strerror(res));
+		}
+
+		return res;
 	}
 
 	res = hxptr_load_file(hx, *++av);
