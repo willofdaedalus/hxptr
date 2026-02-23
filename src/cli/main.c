@@ -3,7 +3,6 @@
 
 int main(int ac, char **av)
 {
-	int line_num;
 	HxptrResult_t res;
 	hxptr_t *hx;
 
@@ -18,15 +17,12 @@ int main(int ac, char **av)
 		return -1;
 	}
 
-	res = hxptr_load_profile(hx, "./profiles/rp2040.prof", &line_num);
+	res = hxptr_load_profile(hx, "./profiles/rp2040.prof");
 	if (res != HX_OK) {
-		if (res != HX_ERR_BAD_PROFILE) {
+		if (hx->error->set) {
 			fprintf(stderr,
-				"line %d: %s\n",
-				line_num,
-				hxptr_strerror(res));
-		} else {
-			fprintf(stderr, "%s\n", hxptr_strerror(res));
+				"encountered an issue loading mcu profile\n");
+			fprintf(stderr, "%s\n", hx->error->msg);
 		}
 
 		goto cleanup;
@@ -36,6 +32,12 @@ int main(int ac, char **av)
 	if (res != HX_OK) {
 		// TODO; do extra checks like displaying all errors collected in
 		// the context
+		if (hx->error->set) {
+			fprintf(stderr,
+				"encountered an issue loading '%s'\n",
+				*av);
+			fprintf(stderr, "%s\n", hx->error->msg);
+		}
 		goto cleanup;
 	}
 
@@ -51,7 +53,6 @@ int main(int ac, char **av)
 	return 0;
 
 cleanup:
-	fprintf(stderr, "hxptr: %s\n", hxptr_strerror(res));
 	hxptr_free(hx);
 	return res;
 }

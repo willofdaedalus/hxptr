@@ -246,11 +246,9 @@ mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 		} else if (strcmp(directive, "region") == 0) {
 			*res = parse_region_entry(prof, &p);
 		} else {
-			fprintf(stderr,
-				"line %d: unknown directive '%s'\n",
-				line_num,
-				directive);
-			continue;
+			*out_num = line_num;
+			*res = HX_ERR_UNKN_DIRECTIVE;
+			goto cleanup_mem_blocks;
 		}
 
 		if (*res != HX_OK) {
@@ -261,9 +259,6 @@ mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 		// check for extra tokens that shouldn't be there
 		unexpected = next_token(&p);
 		if (unexpected && unexpected[0] != '#') {
-			fprintf(stderr,
-				"line %d: unexpected tokens after directives\n",
-				line_num);
 			*res = HX_ERR_BAD_CONFIG;
 			goto cleanup_mem_blocks;
 		}

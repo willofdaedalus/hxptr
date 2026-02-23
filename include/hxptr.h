@@ -34,9 +34,9 @@ typedef enum {
 	HX_ERR_PARSE_DEETS = -33,
 	HX_ERR_PARSE_BAD_VALUE = -34,
 	HX_ERR_OVERFLOW = -35,
-	HX_ERR_UNKN_MEM_TYPE = -36,
-	HX_ERR_BAD_CONFIG = -37,
-	HX_ERR_BAD_PROFILE = -38,
+	HX_ERR_BAD_CONFIG = -36,
+	HX_ERR_BAD_PROFILE = -37,
+	HX_ERR_UNKN_DIRECTIVE = -38,
 } HxptrResult_t;
 
 typedef enum {
@@ -146,10 +146,16 @@ typedef struct {
 } mcu_profile_t;
 
 typedef struct {
+	char msg[256];
+	uint8_t set;
+} hxptr_error_t;
+
+typedef struct {
 	sparse_memory_t *memory;
 	reports_t *reports;
 	mcu_profile_t *profile;
 	hxptr_stats_t *stats;
+	hxptr_error_t *error;
 	char *filename;
 } hxptr_t;
 
@@ -157,6 +163,7 @@ typedef struct {
 hxptr_t *hxptr_init(void);
 HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path);
 void hxptr_free(hxptr_t *ctx);
+void hxptr_set_err(hxptr_t *ctx, const char *fmt, ...);
 
 // memory operations
 HxptrResult_t hxptr_finalize_memory(hxptr_t *ctx);
@@ -167,7 +174,7 @@ HxptrResult_t hxptr_get_range(hxptr_t *ctx,
 			      uint8_t *buf,
 			      uint32_t *len);
 HxptrResult_t hxptr_print_stats(hxptr_t *hx);
-HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path, int *line_num);
+HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path);
 
 const char *hxptr_strerror(HxptrResult_t err);
 

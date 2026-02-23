@@ -38,7 +38,7 @@ ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count, uint16_t *sum)
 	while (*line && *line != ':') {
 		if (!isspace(*line)) {
 			// non-whitespace before ':' is invalid
-			return HX_ERR_INV_RECORD;
+			return HX_ERR_NO_RECORD;
 		}
 		line++;
 	}
@@ -135,14 +135,17 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	size_t count;
 	HxptrResult_t res;
 
-
 	if (!line) {
 		return HX_ERR_NULL;
 	}
+
 	res = ihex_to_bytes(line, (uint8_t *) bytes, &count, &sum);
 	if (res != HX_OK) {
 		return res;
 	}
+	// in the event that the validation below fails we, can get the correct
+	// count from the current byte record
+	out_record->byte_count = bytes[0];
 
 	res = validate_hex_bytes((uint8_t *) bytes, count);
 	if (res != HX_OK) {
@@ -150,7 +153,6 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	}
 
 	// actual record filling happens here
-	out_record->byte_count = bytes[0];
 	out_record->address = (uint16_t) ((bytes[1] << 8) | bytes[2]);
 
 	out_record->type = bytes[3];

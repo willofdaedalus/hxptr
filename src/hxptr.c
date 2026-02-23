@@ -4,6 +4,7 @@
 #include "hxptr_profile.h"
 #include "hxptr_record.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -180,10 +181,17 @@ hxptr_t *hxptr_init(void)
 	if (!hx->reports) {
 		goto cleanup_stats;
 	}
+
+	hx->error = calloc(1, sizeof(hxptr_error_t));
+	if (!hx->error) {
+		goto cleanup_reports;
+	}
 	hx->stats->addr_lowest = UINT32_MAX;
 
 	return hx;
 
+cleanup_reports:
+	free(hx->reports);
 cleanup_stats:
 	free(hx->stats);
 cleanup_mem:
@@ -194,15 +202,17 @@ cleanup_hx:
 	return NULL;
 }
 
-HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path, int *line_num)
+HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path)
 {
+	int linenum;
 	HxptrResult_t res;
 	if (!ctx) {
 		return HX_ERR_NULL;
 	}
 
-	ctx->profile = mcu_profile_load(path, &res, line_num);
+	ctx->profile = mcu_profile_load(path, &res, &linenum);
 	if (!ctx->profile) {
+		hxptr_set_err(ctx, "line %d: %s", linenum, hxptr_strerror(res));
 		return res;
 	}
 
@@ -244,8 +254,8 @@ const char *hxptr_strerror(HxptrResult_t err)
 	case HX_ERR_PARSE_MEMORY:
 		return "bad memory definition; expected memory <type> <start> "
 		       "<end>";
-	case HX_ERR_UNKN_MEM_TYPE:
-		return "bad memory type; options are flash, ram, rom, eeprom";
+	case HX_ERR_UNKN_DIRECTIVE:
+		return "unknown directive; expected <directive> <args...>";
 	case HX_ERR_PARSE_DEETS:
 		return "bad details; expected mcu <name> <architecture>";
 	case HX_ERR_BAD_PROFILE:
@@ -258,13 +268,26 @@ const char *hxptr_strerror(HxptrResult_t err)
 	}
 }
 
+void hxptr_set_err(hxptr_t *ctx, const char *fmt, ...)
+{
+	if (!ctx || !ctx->error)
+		return;
+
+	ctx->error->set = 1;
+
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(ctx->error->msg, sizeof(ctx->error->msg), fmt, args);
+	va_end(args);
+}
+
 
 HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 {
 	FILE *fp;
 	const char *filename;
 	char buf[512];
-	uint32_t linenum = 1;
+	uint32_t linenum = 0;
 	HxptrResult_t res;
 	hxptr_record_t record = {0};
 	hxptr_parse_state_t state = {0};
@@ -290,15 +313,30 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	}
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		linenum++;
+
 		res = hex_line_to_record(buf, &record);
 		if (res != HX_OK) {
-			if (res == HX_ERR_INV_RECORD) {
-				fprintf(stderr,
-					"line %d: byte count %d doesn't match "
-					"actual data bytes\n",
-					linenum,
-					record.byte_count);
+			switch (res) {
+			case HX_ERR_INV_RECORD:
+				hxptr_set_err(ctx,
+					      "line %d: byte count %d doesn't "
+					      "match actual data. %s",
+					      linenum,
+					      record.byte_count,
+					      hxptr_strerror(res));
+				break;
+			case HX_ERR_NULL:
+				hxptr_set_err(ctx, "%s", hxptr_strerror(res));
+				break;
+			default:
+				hxptr_set_err(ctx,
+					      "line %d: %s",
+					      linenum,
+					      hxptr_strerror(res));
+				break;
 			}
+
 			goto cleanup;
 		}
 
@@ -307,8 +345,6 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		if (res != HX_OK) {
 			goto cleanup;
 		}
-
-		linenum++;
 	}
 
 	if (state.eof != 1) {
@@ -331,6 +367,7 @@ void hxptr_free(hxptr_t *hx)
 		return;
 	}
 
+	free(hx->error);
 	free(hx->stats);
 	free(hx->filename);
 	mcu_profile_free(hx->profile);
