@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#define MAX_ARG_LEN 0xff
 #define MAX_MEMORY_BLOCKS 16
 #define MAX_REGIONS 16
 #define MAX_MCU_NAME_LEN 32
