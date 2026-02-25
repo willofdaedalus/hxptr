@@ -349,6 +349,7 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 
 	if (state.eof != 1) {
 		res = HX_ERR_NO_EOF;
+		hxptr_set_err(ctx, "line %d: %s", linenum, hxptr_strerror(res));
 		goto cleanup;
 	}
 

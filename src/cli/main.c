@@ -87,7 +87,7 @@ int main(int ac, char **av)
 		if (hx->error->set) {
 			fprintf(stderr,
 				"encountered an issue loading '%s'\n",
-				*av);
+				filename);
 			fprintf(stderr, "%s\n", hx->error->msg);
 		}
 		goto cleanup;
