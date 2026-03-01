@@ -248,35 +248,36 @@ mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 		} else {
 			*out_num = line_num;
 			*res = HX_ERR_UNKN_DIRECTIVE;
-			goto cleanup_mem_blocks;
+			goto cleanup_reg_blocks;
 		}
 
 		if (*res != HX_OK) {
 			*out_num = line_num;
-			goto cleanup_mem_blocks;
+			goto cleanup_reg_blocks;
 		}
 
 		// check for extra tokens that shouldn't be there
 		unexpected = next_token(&p);
 		if (unexpected && unexpected[0] != '#') {
 			*res = HX_ERR_BAD_CONFIG;
-			goto cleanup_mem_blocks;
+			goto cleanup_reg_blocks;
 		}
 	}
 
 	// validate required fields
 	if (prof->name[0] == '\0' || prof->mem_count == 0) {
 		fprintf(stderr, "profile missing required fields\n");
-		goto cleanup_mem_blocks;
+		goto cleanup_reg_blocks;
 	}
 
 	fclose(fp);
 
 	return prof;
 
+cleanup_reg_blocks:
+	free(prof->regions);
 cleanup_mem_blocks:
 	free(prof->mem_blocks);
-	free(prof->regions);
 cleanup_prof:
 	free(prof);
 cleanup_fp:

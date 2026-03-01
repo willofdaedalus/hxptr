@@ -1,5 +1,6 @@
 #include "hxptr_memory.h"
 #include "hxptr_diagnostics.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -114,27 +115,6 @@ HxptrResult_t sm_analyze(hxptr_t *ctx, uint32_t threshold)
 
 	return HX_OK;
 }
-
-// static void sm_print_entries(const sparse_memory_t *mem)
-// {
-// 	if (!mem)
-// 		return;
-//
-// 	for (size_t i = 0; i < mem->count; ++i) {
-// 		memory_entry_t *entry = &mem->entries[i];
-//
-// 		if (entry->is_data_record) {
-// 			// print address in hex
-// 			printf("[0x%08x] ", entry->address);
-//
-// 			// print bytes separated by spaces
-// 			for (uint8_t j = 0; j < entry->byte_count; ++j) {
-// 				printf("%02x ", entry->bytes[j]);
-// 			}
-// 			printf("\n");
-// 		}
-// 	}
-// }
 
 void sm_free(sparse_memory_t *mem)
 {

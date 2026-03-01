@@ -1,12 +1,80 @@
 #include "hxptr.h"
+#include "hxsh.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
+static void sm_print_entries(const sparse_memory_t *mem)
+{
+	if (!mem)
+		return;
+
+	for (size_t i = 0; i < mem->count; ++i) {
+		memory_entry_t *entry = &mem->entries[i];
+
+		if (entry->is_data_record) {
+			// print address in hex
+			printf("[0x%08x] ", entry->address);
+
+			// print bytes separated by spaces
+			for (uint8_t j = 0; j < entry->byte_count; ++j) {
+				printf("%02x ", entry->bytes[j]);
+			}
+			printf("\n");
+		}
+	}
+}
+
+static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
+{
+	HxptrResult_t res;
+
+	*hx = hxptr_init();
+	if (!hx) {
+		fprintf(stderr, "hxptr: error initializing hxptr object\n");
+		return HX_ERR_NULL;
+	}
+
+	if (pflag) {
+		res = hxptr_load_profile(*hx, prof);
+		if (res != HX_OK) {
+			if ((*hx)->error->set) {
+				fprintf(stderr,
+					"encountered an issue loading mcu "
+					"profile\n");
+				fprintf(stderr, "%s\n", (*hx)->error->msg);
+			}
+
+			return res;
+		}
+	}
+
+	res = hxptr_load_file(*hx, file);
+	if (res != HX_OK) {
+		// TODO; do extra checks like displaying all errors collected in
+		// the context
+		if ((*hx)->error->set) {
+			fprintf(stderr,
+				"encountered an issue loading '%s'\n",
+				file);
+			fprintf(stderr, "%s\n", (*hx)->error->msg);
+		}
+		return res;
+	}
+
+	res = hxptr_finalize_memory(*hx);
+	if (res != HX_OK) {
+		return res;
+	}
+
+	return HX_OK;
+}
+
 int main(int ac, char **av)
 {
 	HxptrResult_t res;
-	hxptr_t *hx;
+	hxptr_t *hx = NULL;
+	hxsh_t *sh;
 	char filename[MAX_ARG_LEN], profilename[MAX_ARG_LEN];
 	int c, pflag = 0, fflag = 0;
 
@@ -60,45 +128,36 @@ int main(int ac, char **av)
 			"warning: use -p <file.prof> to load a profile\n");
 	}
 
-	hx = hxptr_init();
-	if (!hx) {
-		fprintf(stderr, "hxptr: error initializing hxptr object\n");
+	res = init_core(&hx, pflag, profilename, filename);
+	if (res != HX_OK) {
+		if (hx) {
+			goto cleanup;
+		}
+
 		return -1;
 	}
 
-	if (pflag) {
-		res = hxptr_load_profile(hx, profilename);
-		if (res != HX_OK) {
-			if (hx->error->set) {
-				fprintf(stderr,
-					"encountered an issue loading mcu "
-					"profile\n");
-				fprintf(stderr, "%s\n", hx->error->msg);
-			}
-
-			goto cleanup;
-		}
-	}
-
-	res = hxptr_load_file(hx, filename);
-	if (res != HX_OK) {
-		// TODO; do extra checks like displaying all errors collected in
-		// the context
-		if (hx->error->set) {
-			fprintf(stderr,
-				"encountered an issue loading '%s'\n",
-				filename);
-			fprintf(stderr, "%s\n", hx->error->msg);
-		}
+	sh = hxsh_init(hx);
+	if (!sh) {
+		res = HX_ERR_NULL;
 		goto cleanup;
 	}
 
-	res = hxptr_finalize_memory(hx);
-	if (res != HX_OK) {
-		goto cleanup;
-	}
+	while (sh->running) {
+		printf(PROMPT);
 
-	hxptr_print_stats(hx);
+		if (fgets(sh->cmd, sizeof(sh->cmd), stdin) == NULL) {
+			sh->running = 0;
+			break;
+		}
+
+		printf("%s", sh->cmd);
+	}
+	printf("goodbye...\n");
+
+	hxsh_free(sh);
+
+	sm_print_entries(hx->memory);
 
 	hxptr_free(hx);
 
