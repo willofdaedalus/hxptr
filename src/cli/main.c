@@ -27,7 +27,7 @@ static void sm_print_entries(const sparse_memory_t *mem)
 
 static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 {
-	HxptrResult_t res;
+	hxptr_error_t err = {0};
 
 	*hx = hxptr_init();
 	if (!hx) {
@@ -36,35 +36,25 @@ static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 	}
 
 	if (pflag) {
-		res = hxptr_load_profile(*hx, prof);
-		if (res != HX_OK) {
-			if ((*hx)->error->set) {
-				fprintf(stderr,
-					"encountered an issue loading mcu "
-					"profile\n");
-				fprintf(stderr, "%s\n", (*hx)->error->msg);
-			}
-
-			return res;
+		err = hxptr_load_profile(*hx, prof);
+		if (err.code != HX_OK) {
+			fprintf(stderr, "%s\n", err.msg);
+			return err.code;
 		}
 	}
 
-	res = hxptr_load_file(*hx, file);
-	if (res != HX_OK) {
+	err = hxptr_load_file(*hx, file);
+	if (err.code != HX_OK) {
 		// TODO; do extra checks like displaying all errors collected in
 		// the context
-		if ((*hx)->error->set) {
-			fprintf(stderr,
-				"encountered an issue loading '%s'\n",
-				file);
-			fprintf(stderr, "%s\n", (*hx)->error->msg);
-		}
-		return res;
+		fprintf(stderr, "%s\n", err.msg);
+		return err.code;
 	}
 
-	res = hxptr_finalize_memory(*hx);
-	if (res != HX_OK) {
-		return res;
+	err = hxptr_finalize_memory(*hx);
+	if (err.code != HX_OK) {
+		fprintf(stderr, "%s\n", err.msg);
+		return err.code;
 	}
 
 	return HX_OK;
@@ -134,7 +124,7 @@ int main(int ac, char **av)
 			goto cleanup;
 		}
 
-		return -1;
+		return res;
 	}
 
 	sh = hxsh_init(hx);

@@ -182,16 +182,14 @@ hxptr_t *hxptr_init(void)
 		goto cleanup_stats;
 	}
 
-	hx->error = calloc(1, sizeof(hxptr_error_t));
-	if (!hx->error) {
-		goto cleanup_reports;
-	}
+	// hx->error = calloc(1, sizeof(hxptr_error_t));
+	// if (!hx->error) {
+	// 	goto cleanup_reports;
+	// }
 	hx->stats->addr_lowest = UINT32_MAX;
 
 	return hx;
 
-cleanup_reports:
-	free(hx->reports);
 cleanup_stats:
 	free(hx->stats);
 cleanup_mem:
@@ -202,21 +200,22 @@ cleanup_hx:
 	return NULL;
 }
 
-HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path)
+hxptr_error_t hxptr_load_profile(hxptr_t *ctx, const char *path)
 {
-	int linenum;
 	HxptrResult_t res;
+	hxptr_error_t err = {0};
+
 	if (!ctx) {
-		return HX_ERR_NULL;
+		res = HX_ERR_NULL;
+		return hxptr_err(res, hxptr_strerror(res));
 	}
 
-	ctx->profile = mcu_profile_load(path, &res, &linenum);
+	ctx->profile = mcu_profile_load(path, &err);
 	if (!ctx->profile) {
-		hxptr_set_err(ctx, "line %d: %s", linenum, hxptr_strerror(res));
-		return res;
+		return err;
 	}
 
-	return HX_OK;
+	return hxptr_ok();
 }
 
 const char *hxptr_strerror(HxptrResult_t err)
@@ -268,21 +267,7 @@ const char *hxptr_strerror(HxptrResult_t err)
 	}
 }
 
-void hxptr_set_err(hxptr_t *ctx, const char *fmt, ...)
-{
-	if (!ctx || !ctx->error)
-		return;
-
-	ctx->error->set = 1;
-
-	va_list args;
-	va_start(args, fmt);
-	vsnprintf(ctx->error->msg, sizeof(ctx->error->msg), fmt, args);
-	va_end(args);
-}
-
-
-HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
+hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 {
 	FILE *fp;
 	const char *filename;
@@ -291,24 +276,30 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	HxptrResult_t res;
 	hxptr_record_t record = {0};
 	hxptr_parse_state_t state = {0};
+	hxptr_error_t err = {0};
 
 	if (!ctx || !path) {
-		return HX_ERR_NULL;
+		res = HX_ERR_NULL;
+		return hxptr_err(res, hxptr_strerror(res));
 	}
 
 	fp = fopen(path, "r");
 	if (!fp) {
-		perror("fopen");
-		return HX_ERR_BAD_FILE;
+		res = HX_ERR_BAD_FILE;
+		return hxptr_err(res, "could not access file at %s", path);
 	}
 
-	// get the actual filename name
+	// get the actual filename
 	filename = strrchr(path, '/');
 	filename = filename ? filename + 1 : path;
 
 	ctx->filename = strdup(filename);
 	if (!ctx->filename) {
 		res = HX_ERR_BAD_ALLOC;
+		err = hxptr_err(res,
+				"bad allocation in %s:%d, hxptr_load_file()",
+				__FILE__,
+				__LINE__);
 		goto cleanup;
 	}
 
@@ -319,21 +310,27 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		if (res != HX_OK) {
 			switch (res) {
 			case HX_ERR_INV_RECORD:
-				hxptr_set_err(ctx,
-					      "line %d: byte count %d doesn't "
-					      "match actual data. %s",
-					      linenum,
-					      record.byte_count,
-					      hxptr_strerror(res));
+				err = hxptr_err(res,
+						"line %d: record is invalid",
+						linenum);
 				break;
 			case HX_ERR_NULL:
-				hxptr_set_err(ctx, "%s", hxptr_strerror(res));
+				err = hxptr_err(res, hxptr_strerror(res));
+				break;
+			case HX_ERR_NO_RECORD:
+				err = hxptr_err(res,
+						"line %d: no record found",
+						linenum);
+				break;
+			case HX_ERR_UKN_TYPE:
+				err = hxptr_err(
+					res,
+					"line %d: unknown record type '%d'",
+					linenum,
+					record.type);
 				break;
 			default:
-				hxptr_set_err(ctx,
-					      "line %d: %s",
-					      linenum,
-					      hxptr_strerror(res));
+				err = hxptr_err(res, hxptr_strerror(res));
 				break;
 			}
 
@@ -343,23 +340,58 @@ HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		record.linenum = linenum;
 		res = hxptr_append_record(ctx, &record, &state);
 		if (res != HX_OK) {
+			switch (res) {
+			case HX_ERR_INV_RECORD:
+				err = hxptr_err(res,
+						"line %d: record is invalid",
+						linenum);
+				break;
+			case HX_ERR_NULL:
+				err = hxptr_err(res, hxptr_strerror(res));
+				break;
+			case HX_ERR_BAD_FILE:
+				err = hxptr_err(
+					res,
+					"line %d: one or more records after "
+					"EOF is not allowed",
+					linenum);
+				break;
+			case HX_ERR_UKN_TYPE:
+				err = hxptr_err(
+					res,
+					"line %d: unknown record type '%d'",
+					linenum,
+					record.type);
+				break;
+			case HX_ERR_BAD_ALLOC:
+				err = hxptr_err(res,
+						"bad allocation in %s:%d, "
+						"hxptr_append_record()",
+						__FILE__,
+						__LINE__);
+				break;
+			default:
+				err = hxptr_err(res, hxptr_strerror(res));
+				break;
+			}
 			goto cleanup;
 		}
 	}
 
 	if (state.eof != 1) {
 		res = HX_ERR_NO_EOF;
-		hxptr_set_err(ctx, "line %d: %s", linenum, hxptr_strerror(res));
+		err = hxptr_err(
+			res, "line %d: no EOF in the hex file", linenum);
 		goto cleanup;
 	}
 
 	fclose(fp);
 
-	return HX_OK;
+	return hxptr_ok();
 
 cleanup:
 	fclose(fp);
-	return res;
+	return err;
 }
 
 void hxptr_free(hxptr_t *hx)
@@ -368,7 +400,6 @@ void hxptr_free(hxptr_t *hx)
 		return;
 	}
 
-	free(hx->error);
 	free(hx->stats);
 	free(hx->filename);
 	mcu_profile_free(hx->profile);
@@ -377,14 +408,17 @@ void hxptr_free(hxptr_t *hx)
 	free(hx);
 }
 
-HxptrResult_t hxptr_finalize_memory(hxptr_t *hx)
+hxptr_error_t hxptr_finalize_memory(hxptr_t *hx)
 {
+	HxptrResult_t res;
+
 	if (!hx) {
-		return HX_ERR_NULL;
+		res = HX_ERR_NULL;
+		return hxptr_err(res, hxptr_strerror(res));
 	}
 
 	if (hx->memory->count < 1) {
-		return HX_OK;
+		return hxptr_err(HX_OK, hxptr_strerror(HX_OK));
 	}
 
 	qsort(hx->memory->entries,
@@ -395,7 +429,8 @@ HxptrResult_t hxptr_finalize_memory(hxptr_t *hx)
 	hx->memory->finalized = 1;
 
 	// more should be done here
-	return sm_analyze(hx, GAP_THRESHOLD_DEFAULT);
+	res = sm_analyze(hx, GAP_THRESHOLD_DEFAULT);
+	return hxptr_err(res, hxptr_strerror(res));
 }
 
 HxptrResult_t hxptr_print_stats(hxptr_t *hx)
@@ -409,4 +444,22 @@ HxptrResult_t hxptr_print_stats(hxptr_t *hx)
 	printf("address ends at 0x%08x\n", hx->stats->addr_highest);
 
 	return HX_OK;
+}
+
+hxptr_error_t hxptr_err(HxptrResult_t res, const char *msg, ...)
+{
+	hxptr_error_t err = {0};
+	err.code = res;
+
+	va_list list;
+	va_start(list, msg);
+	vsnprintf(err.msg, sizeof(err.msg), msg, list);
+	va_end(list);
+
+	return err;
+}
+
+hxptr_error_t hxptr_ok(void)
+{
+	return (hxptr_error_t) {"42", HX_OK};
 }

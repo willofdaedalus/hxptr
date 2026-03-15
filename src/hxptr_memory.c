@@ -1,6 +1,5 @@
 #include "hxptr_memory.h"
 #include "hxptr_diagnostics.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -69,9 +68,9 @@ HxptrResult_t sm_analyze(hxptr_t *ctx, uint32_t threshold)
 	hxptr_stats_t *stats;
 	memory_entry_t *cur, *next;
 	// overlap variables
-	uint32_t cur_end, overlap_start, overlap_end, overlap_sz, next_end;
+	uint32_t cur_end, overlap_sz;
 	// gap check variables
-	uint32_t cur_end_bound, gap_size;
+	uint32_t gap_size;
 
 	if (!ctx->memory->finalized) {
 		return HX_ERR_NOT_FINALIZED;

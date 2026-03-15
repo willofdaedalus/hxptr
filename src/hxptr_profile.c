@@ -176,25 +176,27 @@ static const directive_entry_t directives[] = {
 static const size_t directive_count =
 	sizeof(directives) / sizeof(directives[0]);
 
-mcu_profile_t *
-mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
+mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 {
 	FILE *fp;
 	char line[256];
-	int line_num = 0;
-
-	*res = HX_OK;
-	*out_num = 0;
+	int linenum = 0;
+	HxptrResult_t res;
 
 	fp = fopen(path, "r");
 	if (!fp) {
-		*res = HX_ERR_BAD_PROFILE;
+		res = HX_ERR_BAD_PROFILE;
+		*err = hxptr_err(res, "could not load profile at %s", path);
 		return NULL;
 	}
 
 	mcu_profile_t *prof = calloc(1, sizeof(mcu_profile_t));
 	if (!prof) {
-		*res = HX_ERR_BAD_ALLOC;
+		res = HX_ERR_BAD_ALLOC;
+		*err = hxptr_err(res,
+				 "bad allocation in %s:%d, mcu_profile_load()",
+				 __FILE__,
+				 __LINE__);
 		fclose(fp);
 		return NULL;
 	}
@@ -203,12 +205,16 @@ mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 	prof->regions = malloc(sizeof(profile_region_t) * MAX_REGIONS);
 
 	if (!prof->mem_blocks || !prof->regions) {
-		*res = HX_ERR_BAD_ALLOC;
+		res = HX_ERR_BAD_ALLOC;
+		*err = hxptr_err(res,
+				 "bad allocation in %s:%d, mcu_profile_load()",
+				 __FILE__,
+				 __LINE__);
 		goto fail;
 	}
 
 	while (fgets(line, sizeof(line), fp)) {
-		line_num++;
+		linenum++;
 
 		char *p = skip_whitespace(line);
 		if (*p == '#' || *p == '\0' || *p == '\n') {
@@ -229,28 +235,77 @@ mcu_profile_load(const char *path, HxptrResult_t *res, int *out_num)
 		}
 
 		if (!fn) {
-			*res = HX_ERR_UNKN_DIRECTIVE;
-			*out_num = line_num;
+			res = HX_ERR_UNKN_DIRECTIVE;
+			*err = hxptr_err(res,
+					 "line %d: unknown directive %s",
+					 linenum,
+					 directive);
 			goto fail;
 		}
 
-		*res = fn(prof, &p);
-		if (*res != HX_OK) {
-			*out_num = line_num;
+		res = fn(prof, &p);
+		if (res != HX_OK) {
+			switch (res) {
+			case HX_ERR_PARSE_DEETS:
+				*err = hxptr_err(res,
+						 "line %d: could not parse "
+						 "details for directive %s",
+						 linenum,
+						 directive);
+				break;
+			case HX_ERR_PARSE_BAD_VALUE:
+				*err = hxptr_err(res,
+						 "line %d: invalid value "
+						 "passed for directive",
+						 linenum);
+				break;
+			case HX_ERR_PARSE_MEMORY:
+				*err = hxptr_err(res,
+						 "line %d: invalid values for "
+						 "memory directive",
+						 linenum);
+				break;
+			case HX_ERR_PARSE_REGION:
+				*err = hxptr_err(
+					res,
+					"line %d: couldn't parse region values",
+					linenum);
+				break;
+			case HX_ERR_PARSE:
+				*err = hxptr_err(
+					res,
+					"line %d: unable to parse line",
+					linenum);
+				break;
+			default:
+				*err = hxptr_err(res, hxptr_strerror(res));
+			}
+			*err = hxptr_err(res,
+					 "line %d: unknown directive %s",
+					 linenum,
+					 directive);
 			goto fail;
 		}
 
 		char *unexpected = next_token(&p);
 		if (unexpected && unexpected[0] != '#') {
-			*res = HX_ERR_BAD_CONFIG;
-			*out_num = line_num;
+			res = HX_ERR_BAD_CONFIG;
+			*err = hxptr_err(res,
+					 "line %d: unexpected values after "
+					 "directive definition '%s'",
+					 linenum,
+					 unexpected);
 			goto fail;
 		}
 	}
 
 	if (prof->name[0] == '\0' || prof->mem_count == 0) {
-		fprintf(stderr, "profile missing required fields\n");
-		*res = HX_ERR_BAD_PROFILE;
+		// fprintf(stderr, "profile missing required fields\n");
+		res = HX_ERR_BAD_PROFILE;
+		*err = hxptr_err(res,
+				 "profile missing required fields, name and "
+				 "memory size");
+
 		goto fail;
 	}
 

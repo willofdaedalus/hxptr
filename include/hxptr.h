@@ -69,6 +69,11 @@ typedef enum {
 } DiagnosticType_t;
 
 typedef struct {
+	char msg[256];
+	HxptrResult_t code;
+} hxptr_error_t;
+
+typedef struct {
 	uint32_t address;	  // contains extended hi and lo bytes
 	uint32_t line_num;	  // line number for conflict resolutions
 	uint8_t bytes[MAX_BYTES]; // actual data
@@ -147,36 +152,32 @@ typedef struct {
 } mcu_profile_t;
 
 typedef struct {
-	char msg[256];
-	uint8_t set;
-} hxptr_error_t;
-
-typedef struct {
 	sparse_memory_t *memory;
 	reports_t *reports;
 	mcu_profile_t *profile;
 	hxptr_stats_t *stats;
-	hxptr_error_t *error;
 	char *filename;
 } hxptr_t;
 
 // lifecycle
 hxptr_t *hxptr_init(void);
-HxptrResult_t hxptr_load_file(hxptr_t *ctx, const char *path);
+hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path);
 void hxptr_free(hxptr_t *ctx);
-void hxptr_set_err(hxptr_t *ctx, const char *fmt, ...);
+// void hxptr_set_err(hxptr_t *ctx, const char *fmt, ...);
 
 // memory operations
-HxptrResult_t hxptr_finalize_memory(hxptr_t *ctx);
-HxptrResult_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
-HxptrResult_t hxptr_get_range(hxptr_t *ctx,
+hxptr_error_t hxptr_finalize_memory(hxptr_t *ctx);
+hxptr_error_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
+hxptr_error_t hxptr_get_range(hxptr_t *ctx,
 			      uint32_t start,
 			      uint32_t size,
 			      uint8_t *buf,
 			      uint32_t *len);
 HxptrResult_t hxptr_print_stats(hxptr_t *hx);
-HxptrResult_t hxptr_load_profile(hxptr_t *ctx, const char *path);
+hxptr_error_t hxptr_load_profile(hxptr_t *ctx, const char *path);
 
+hxptr_error_t hxptr_ok(void);
+hxptr_error_t hxptr_err(HxptrResult_t res, const char *msg, ...);
 const char *hxptr_strerror(HxptrResult_t err);
 
 // results query
