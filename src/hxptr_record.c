@@ -25,8 +25,8 @@ static inline uint8_t hex_to_byte(const char *str)
 	return (hi << 4) | lo;
 }
 
-static HxptrResult_t
-ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count, uint16_t *sum)
+static HxptrResult_t ihex_to_bytes(
+	const char *line, uint8_t *out, size_t *out_count, uint16_t *sum)
 {
 	size_t idx, hex_chars;
 
@@ -69,8 +69,7 @@ ihex_to_bytes(const char *line, uint8_t *out, size_t *out_count, uint16_t *sum)
 
 	// convert hex pairs to bytes
 	idx = 0;
-	while (*line && *line != '\n' && *line != '\r' &&
-	       idx < MAX_BYTE_COUNT) {
+	while (*line && *line != '\n' && *line != '\r' && idx < MAX_BYTE_COUNT) {
 		// if (!isxdigit(line[0]) || !isxdigit(line[1])) {
 		// 	// should not happen but we don't know when a photon
 		// 	// from the sun would flip a bit and mess everything up
@@ -130,7 +129,7 @@ static HxptrResult_t validate_hex_bytes(uint8_t *data, size_t data_len)
 
 HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 {
-	uint8_t bytes[MAX_BYTE_COUNT] = {0};
+	uint8_t bytes[MAX_BYTE_COUNT] = { 0 };
 	uint16_t sum = 0;
 	size_t count;
 	HxptrResult_t res;

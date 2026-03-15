@@ -6,8 +6,9 @@
 
 static void sm_print_entries(const sparse_memory_t *mem)
 {
-	if (!mem)
+	if (!mem) {
 		return;
+	}
 
 	for (size_t i = 0; i < mem->count; ++i) {
 		memory_entry_t *entry = &mem->entries[i];
@@ -27,7 +28,7 @@ static void sm_print_entries(const sparse_memory_t *mem)
 
 static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 {
-	hxptr_error_t err = {0};
+	hxptr_error_t err = { 0 };
 
 	*hx = hxptr_init();
 	if (!hx) {
@@ -112,10 +113,8 @@ int main(int ac, char **av)
 	}
 
 	if (!pflag) {
-		fprintf(stderr,
-			"warning: no profile loaded, assuming base of 0x0\n");
-		fprintf(stderr,
-			"warning: use -p <file.prof> to load a profile\n");
+		fprintf(stderr, "warning: no profile loaded, assuming base of 0x0\n");
+		fprintf(stderr, "warning: use -p <file.prof> to load a profile\n");
 	}
 
 	res = init_core(&hx, pflag, profilename, filename);

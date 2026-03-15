@@ -13,11 +13,12 @@ HxptrResult_t diag_append(hxptr_t *ctx, diagnostic_t *diag)
 	// grow if needed
 	if (ctx->reports->count >= ctx->reports->capacity) {
 		size_t new_cap = ctx->reports->capacity * 2;
-		if (new_cap == 0)
+		if (new_cap == 0) {
 			new_cap = 16; // initial capacity
+		}
 
-		diagnostic_t *new_entries = realloc(
-			ctx->reports->entries, new_cap * sizeof(diagnostic_t));
+		diagnostic_t *new_entries =
+			realloc(ctx->reports->entries, new_cap * sizeof(diagnostic_t));
 		if (!new_entries) {
 			return HX_ERR_BAD_ALLOC;
 		}
@@ -27,9 +28,8 @@ HxptrResult_t diag_append(hxptr_t *ctx, diagnostic_t *diag)
 	}
 
 	// append
-	memcpy(&ctx->reports->entries[ctx->reports->count],
-	       diag,
-	       sizeof(diagnostic_t));
+	memcpy(&ctx->reports->entries[ctx->reports->count], diag,
+		sizeof(diagnostic_t));
 	ctx->reports->count++;
 	// ctx->reports->entries[ctx->reports->count++] = *diag;
 

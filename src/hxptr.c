@@ -18,9 +18,8 @@ typedef struct {
 	uint8_t eof;
 } hxptr_parse_state_t;
 
-static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
-					 hxptr_record_t *record,
-					 hxptr_parse_state_t *state)
+static HxptrResult_t hxptr_append_record(
+	hxptr_t *ctx, hxptr_record_t *record, hxptr_parse_state_t *state)
 {
 	uint32_t addr;
 	HxptrResult_t res;
@@ -37,11 +36,9 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
 	switch (record->type) {
 	case IHEX_DATA:
 		if (state->cur_type == IHEX_ESA) {
-			addr = ((uint32_t) state->segment << 4) +
-			       record->address;
+			addr = ((uint32_t) state->segment << 4) + record->address;
 		} else if (state->cur_type == IHEX_ELA) {
-			addr = ((uint32_t) state->linear << 16) |
-			       record->address;
+			addr = ((uint32_t) state->linear << 16) | record->address;
 		} else {
 			addr = record->address;
 		}
@@ -83,8 +80,7 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
 		if (record->byte_count != ADDR_COUNT) {
 			return HX_ERR_INV_RECORD;
 		}
-		state->segment =
-			(uint16_t) ((record->data[0] << 8) | record->data[1]);
+		state->segment = (uint16_t) ((record->data[0] << 8) | record->data[1]);
 		// state->segment = ((uint16_t) record->bytes[0] << 8) |
 		// 	       (uint16_t) record->bytes[1];
 
@@ -97,8 +93,8 @@ static HxptrResult_t hxptr_append_record(hxptr_t *ctx,
 			return HX_ERR_INV_RECORD;
 		}
 
-		state->linear = ((uint16_t) record->data[0] << 8) |
-				(uint16_t) record->data[1];
+		state->linear =
+			((uint16_t) record->data[0] << 8) | (uint16_t) record->data[1];
 
 		state->segment = 0;
 		state->cur_type = IHEX_ELA;
@@ -203,7 +199,7 @@ cleanup_hx:
 hxptr_error_t hxptr_load_profile(hxptr_t *ctx, const char *path)
 {
 	HxptrResult_t res;
-	hxptr_error_t err = {0};
+	hxptr_error_t err = { 0 };
 
 	if (!ctx) {
 		res = HX_ERR_NULL;
@@ -249,17 +245,17 @@ const char *hxptr_strerror(HxptrResult_t err)
 		return "unexpected symbol after directives";
 	case HX_ERR_PARSE_REGION:
 		return "bad region definition; expected region <name> <start> "
-		       "<end> [protected]";
+			   "<end> [protected]";
 	case HX_ERR_PARSE_MEMORY:
 		return "bad memory definition; expected memory <type> <start> "
-		       "<end>";
+			   "<end>";
 	case HX_ERR_UNKN_DIRECTIVE:
 		return "unknown directive; expected <directive> <args...>";
 	case HX_ERR_PARSE_DEETS:
 		return "bad details; expected mcu <name> <architecture>";
 	case HX_ERR_BAD_PROFILE:
 		return "couldn't open profile description file; double check "
-		       "path";
+			   "path";
 	case HX_ERR_NO_EOF:
 		return "no eof in hex file. exiting";
 	default:
@@ -274,9 +270,9 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	char buf[512];
 	uint32_t linenum = 0;
 	HxptrResult_t res;
-	hxptr_record_t record = {0};
-	hxptr_parse_state_t state = {0};
-	hxptr_error_t err = {0};
+	hxptr_record_t record = { 0 };
+	hxptr_parse_state_t state = { 0 };
+	hxptr_error_t err = { 0 };
 
 	if (!ctx || !path) {
 		res = HX_ERR_NULL;
@@ -296,10 +292,8 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	ctx->filename = strdup(filename);
 	if (!ctx->filename) {
 		res = HX_ERR_BAD_ALLOC;
-		err = hxptr_err(res,
-				"bad allocation in %s:%d, hxptr_load_file()",
-				__FILE__,
-				__LINE__);
+		err = hxptr_err(res, "bad allocation in %s:%d, hxptr_load_file()",
+			__FILE__, __LINE__);
 		goto cleanup;
 	}
 
@@ -310,24 +304,17 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		if (res != HX_OK) {
 			switch (res) {
 			case HX_ERR_INV_RECORD:
-				err = hxptr_err(res,
-						"line %d: record is invalid",
-						linenum);
+				err = hxptr_err(res, "line %d: record is invalid", linenum);
 				break;
 			case HX_ERR_NULL:
 				err = hxptr_err(res, hxptr_strerror(res));
 				break;
 			case HX_ERR_NO_RECORD:
-				err = hxptr_err(res,
-						"line %d: no record found",
-						linenum);
+				err = hxptr_err(res, "line %d: no record found", linenum);
 				break;
 			case HX_ERR_UKN_TYPE:
-				err = hxptr_err(
-					res,
-					"line %d: unknown record type '%d'",
-					linenum,
-					record.type);
+				err = hxptr_err(res, "line %d: unknown record type '%d'",
+					linenum, record.type);
 				break;
 			default:
 				err = hxptr_err(res, hxptr_strerror(res));
@@ -342,33 +329,26 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		if (res != HX_OK) {
 			switch (res) {
 			case HX_ERR_INV_RECORD:
-				err = hxptr_err(res,
-						"line %d: record is invalid",
-						linenum);
+				err = hxptr_err(res, "line %d: record is invalid", linenum);
 				break;
 			case HX_ERR_NULL:
 				err = hxptr_err(res, hxptr_strerror(res));
 				break;
 			case HX_ERR_BAD_FILE:
-				err = hxptr_err(
-					res,
+				err = hxptr_err(res,
 					"line %d: one or more records after "
 					"EOF is not allowed",
 					linenum);
 				break;
 			case HX_ERR_UKN_TYPE:
-				err = hxptr_err(
-					res,
-					"line %d: unknown record type '%d'",
-					linenum,
-					record.type);
+				err = hxptr_err(res, "line %d: unknown record type '%d'",
+					linenum, record.type);
 				break;
 			case HX_ERR_BAD_ALLOC:
 				err = hxptr_err(res,
-						"bad allocation in %s:%d, "
-						"hxptr_append_record()",
-						__FILE__,
-						__LINE__);
+					"bad allocation in %s:%d, "
+					"hxptr_append_record()",
+					__FILE__, __LINE__);
 				break;
 			default:
 				err = hxptr_err(res, hxptr_strerror(res));
@@ -380,8 +360,7 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 
 	if (state.eof != 1) {
 		res = HX_ERR_NO_EOF;
-		err = hxptr_err(
-			res, "line %d: no EOF in the hex file", linenum);
+		err = hxptr_err(res, "line %d: no EOF in the hex file", linenum);
 		goto cleanup;
 	}
 
@@ -421,10 +400,8 @@ hxptr_error_t hxptr_finalize_memory(hxptr_t *hx)
 		return hxptr_err(HX_OK, hxptr_strerror(HX_OK));
 	}
 
-	qsort(hx->memory->entries,
-	      hx->memory->count,
-	      sizeof(memory_entry_t),
-	      sm_comp);
+	qsort(hx->memory->entries, hx->memory->count, sizeof(memory_entry_t),
+		sm_comp);
 
 	hx->memory->finalized = 1;
 
@@ -448,7 +425,7 @@ HxptrResult_t hxptr_print_stats(hxptr_t *hx)
 
 hxptr_error_t hxptr_err(HxptrResult_t res, const char *msg, ...)
 {
-	hxptr_error_t err = {0};
+	hxptr_error_t err = { 0 };
 	err.code = res;
 
 	va_list list;
@@ -461,5 +438,5 @@ hxptr_error_t hxptr_err(HxptrResult_t res, const char *msg, ...)
 
 hxptr_error_t hxptr_ok(void)
 {
-	return (hxptr_error_t) {"42", HX_OK};
+	return (hxptr_error_t) { "42", HX_OK };
 }

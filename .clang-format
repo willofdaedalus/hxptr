@@ -1,18 +1,26 @@
-BasedOnStyle: LLVM
-IndentWidth: 8
-TabWidth: 8
-UseTab: Always
-ContinuationIndentWidth: 8
+BasedOnStyle: WebKit
+IndentWidth: 4
+TabWidth: 4
+UseTab: AlignWithSpaces
+ContinuationIndentWidth: 4
 ColumnLimit: 80
 
 AlwaysBreakAfterReturnType: None      # Return type on same line as function name
-BinPackArguments: false               # Don't try to pack arguments onto fewer lines
-BinPackParameters: false              # Don't try to pack parameters onto fewer lines
-AllowAllParametersOfDeclarationOnNextLine: false  # Don't allow function declaration to put all parameters on the next line
+BinPackArguments: true
+BinPackParameters: BinPack
+AllowAllParametersOfDeclarationOnNextLine: true
+NumericLiteralCase:
+  ExponentLetter: Lower
+  HexDigit: Lower
+  Prefix: Lower
+  Suffix: Upper
+
+# always insert braces
+InsertBraces: true
 
 # Break long lines at function calls and declarations
 BreakBeforeBraces: Linux              # Linux-style braces
-AlignAfterOpenBracket: Align          # Align parameters after open bracket
+AlignAfterOpenBracket: false          # Align parameters after open bracket
 
 # C99 style comments (// instead of /**/)
 SpacesInLineCommentPrefix:
@@ -41,5 +49,8 @@ BreakStringLiterals: true             # Break long string literals
 BreakBeforeBinaryOperators: None      # Don't break before binary operators
 
 # Alignment options for consistency
+AlignArrayOfStructures: Left
+AlignConsecutiveMacros: AcrossEmptyLinesAndComments
+AlignEscapedNewlines: LeftWithLastLine
 AlignConsecutiveAssignments: None     # Don't align consecutive assignments
 AlignConsecutiveDeclarations: None    # Don't align consecutive declarations

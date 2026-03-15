@@ -3,17 +3,17 @@
 
 #include <stdint.h>
 
-#define MAX_ARG_LEN 0xff
-#define MAX_MEMORY_BLOCKS 16
-#define MAX_REGIONS 16
-#define MAX_MCU_NAME_LEN 32
+#define MAX_ARG_LEN           0xff
+#define MAX_MEMORY_BLOCKS     16
+#define MAX_REGIONS           16
+#define MAX_MCU_NAME_LEN      32
 #define GAP_THRESHOLD_DEFAULT 128
-#define ESA_FACTOR 16
-#define ADDR_COUNT 2
-#define START_COUNT 4
-#define MAX_BYTES 0xff
-#define DISP_MAX_WIDTH 0x20
-#define MAX_DIRECTIVE_LEN 0x10
+#define ESA_FACTOR            16
+#define ADDR_COUNT            2
+#define START_COUNT           4
+#define MAX_BYTES             0xff
+#define DISP_MAX_WIDTH        0x20
+#define MAX_DIRECTIVE_LEN     0x10
 
 typedef enum {
 	HX_OK = 0,
@@ -54,11 +54,11 @@ typedef enum {
 
 typedef enum {
 	IHEX_DATA = 0x0, // data
-	IHEX_EOF = 0x1,	 // size of file
-	IHEX_ESA = 0x2,	 // extended segment address
-	IHEX_SSA = 0x3,	 // start segment address
-	IHEX_ELA = 0x4,	 // extended linear address
-	IHEX_SLA = 0x5	 // start linear address
+	IHEX_EOF = 0x1, // size of file
+	IHEX_ESA = 0x2, // extended segment address
+	IHEX_SSA = 0x3, // start segment address
+	IHEX_ELA = 0x4, // extended linear address
+	IHEX_SLA = 0x5 // start linear address
 } IHexRecordType_t;
 
 typedef enum {
@@ -74,13 +74,13 @@ typedef struct {
 } hxptr_error_t;
 
 typedef struct {
-	uint32_t address;	  // contains extended hi and lo bytes
-	uint32_t line_num;	  // line number for conflict resolutions
+	uint32_t address; // contains extended hi and lo bytes
+	uint32_t line_num; // line number for conflict resolutions
 	uint8_t bytes[MAX_BYTES]; // actual data
-	uint8_t byte_count;	  // number of bytes to help in fast rendering
-	uint8_t checksum;	  // checksum
-	uint8_t is_data_record;	  // tracks data records for printing
-	uint16_t byte_sum;	  // fast way to detect gaps
+	uint8_t byte_count; // number of bytes to help in fast rendering
+	uint8_t checksum; // checksum
+	uint8_t is_data_record; // tracks data records for printing
+	uint16_t byte_sum; // fast way to detect gaps
 } memory_entry_t;
 
 typedef struct {
@@ -91,11 +91,11 @@ typedef struct {
 } sparse_memory_t;
 
 typedef struct {
-	uint32_t first_idx;  // index into memory->entries
+	uint32_t first_idx; // index into memory->entries
 	uint32_t second_idx; // for overlaps/gaps
 
 	uint32_t address; // where issue starts
-	uint32_t size;	  // size of issue (overlap/gap)
+	uint32_t size; // size of issue (overlap/gap)
 
 	DiagnosticType_t type;
 	IssueLevel_t level;
@@ -168,11 +168,8 @@ void hxptr_free(hxptr_t *ctx);
 // memory operations
 hxptr_error_t hxptr_finalize_memory(hxptr_t *ctx);
 hxptr_error_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
-hxptr_error_t hxptr_get_range(hxptr_t *ctx,
-			      uint32_t start,
-			      uint32_t size,
-			      uint8_t *buf,
-			      uint32_t *len);
+hxptr_error_t hxptr_get_range(
+	hxptr_t *ctx, uint32_t start, uint32_t size, uint8_t *buf, uint32_t *len);
 HxptrResult_t hxptr_print_stats(hxptr_t *hx);
 hxptr_error_t hxptr_load_profile(hxptr_t *ctx, const char *path);
 
