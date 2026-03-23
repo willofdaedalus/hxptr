@@ -1,27 +1,75 @@
 #ifndef SHELL_H
 #define SHELL_H
 
-#define PROMPT "(hxptr) "
-#define MIN_DISP_VALS (0x10)
+#define PROMPT            "(hxptr) "
+#define MIN_DISP_VALS     0x10
+#define HXQL_MAX_TOKENS   0x20
+#define HXQL_CMD_LEN      0x100
+#define HXQL_LIST_DEFAULT 0x0f
+
 
 #include "hxptr.h"
+#include <stdint.h>
+
+typedef hxptr_error_t (*cmd_handler)(const char *args, void *out_data);
+
+typedef enum {
+	// info subcommands
+	TOK_REGIONS = (1 << 0),
+	TOK_MEMORY = (1 << 1),
+	TOK_STATS = (1 << 2),
+	TOK_DIAG = (1 << 3),
+	TOK_PROFILE = (1 << 4),
+
+	// commands
+	TOK_INFO,
+	TOK_SEARCH,
+	TOK_GOTO,
+	TOK_FRAME,
+	TOK_LIST,
+	TOK_HELP,
+	TOK_QUIT,
+
+	// argument types
+	TOK_HEX,
+	TOK_RANGE,
+	TOK_DOT,
+	TOK_NUMBER,
+
+	// meta
+	TOK_PLUS,
+	TOK_MINUS,
+	TOK_EOF,
+	TOK_UNKNOWN = -1,
+} HxshTokenType_t;
 
 typedef struct {
-	memory_entry_t *entries;
+	uint32_t args;
+} info_req_t;
 
-} hxsh_view_t;
+typedef struct {
+	HxshTokenType_t type;
+	union {
+		info_req_t info_req;
+	} req;
+
+} hxsh_req_t;
+
+typedef struct {
+	const char *name;
+	HxshTokenType_t type;
+} token_map_t;
 
 typedef struct {
 	hxptr_t *hx;
 	uint32_t cur_idx;
-
-	char cmd[16];
-
+	uint32_t search_addr; // last search position
+	char cmd[HXQL_CMD_LEN];
 	int running;
 } hxsh_t;
 
-
 hxsh_t *hxsh_init(hxptr_t *core);
+hxptr_error_t hxsh_repl(hxsh_t *sh);
 void hxsh_free(hxsh_t *hx);
 
 #endif

@@ -63,6 +63,7 @@ static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 
 int main(int ac, char **av)
 {
+	hxptr_error_t err;
 	HxptrResult_t res;
 	hxptr_t *hx = NULL;
 	hxsh_t *sh;
@@ -133,22 +134,15 @@ int main(int ac, char **av)
 	}
 
 	while (sh->running) {
-		printf(PROMPT);
-
-		if (fgets(sh->cmd, sizeof(sh->cmd), stdin) == NULL) {
-			sh->running = 0;
-			break;
+		err = hxsh_repl(sh);
+		if (err.code != HX_OK) {
+			fprintf(stderr, "%s\n", err.msg);
 		}
-
-		printf("%s", sh->cmd);
 	}
-	printf("goodbye...\n");
-
 	hxsh_free(sh);
-
-	sm_print_entries(hx->memory);
-
 	hxptr_free(hx);
+
+	printf("goodbye...\n");
 
 	return 0;
 

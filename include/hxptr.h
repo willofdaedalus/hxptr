@@ -38,6 +38,12 @@ typedef enum {
 	HX_ERR_BAD_CONFIG = -36,
 	HX_ERR_BAD_PROFILE = -37,
 	HX_ERR_UNKN_DIRECTIVE = -38,
+
+	// shell error codes
+	HX_ERR_UNKN_ARG = -50,
+	HX_ERR_UNKNOWN_CMD = -51,
+	HX_ERR_INVALID_ARG = -52,
+	HX_ERR_BAD_TOKEN = -53,
 } HxptrResult_t;
 
 typedef enum {
@@ -50,7 +56,6 @@ typedef enum {
 	LEVEL_ERROR,
 	LEVEL_FATAL,
 } IssueLevel_t;
-
 
 typedef enum {
 	IHEX_DATA = 0x0, // data
@@ -106,7 +111,6 @@ typedef struct {
 	uint32_t count;
 	uint32_t capacity;
 } reports_t;
-
 
 typedef struct {
 	uint8_t data[MAX_BYTES];
