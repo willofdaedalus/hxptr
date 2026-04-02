@@ -33,7 +33,7 @@ SpaceAfterCStyleCast: true            # Space after C-style cast
 SpaceBeforeAssignmentOperators: true  # Space around assignment operators
 PointerAlignment: Right               # int *ptr style
 MaxEmptyLinesToKeep: 2                # Keep at most 2 consecutive empty lines
-IndentCaseLabels: false               # Don't indent case labels
+IndentCaseLabels: true               # Don't indent case labels
 
 # Function layout options
 AllowShortFunctionsOnASingleLine: None  # Don't place short functions on a single line

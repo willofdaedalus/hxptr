@@ -6,6 +6,7 @@
 #include <string.h>
 
 static hxptr_error_t info_handler(const char *args, void *out_data);
+static hxptr_error_t list_handler(const char *args, void *out_data);
 
 // out_tok map
 static const token_map_t token_map[] = {
@@ -99,21 +100,47 @@ void render(hxql_result_t *result, HxshTokenType_t type)
 		return;
 	}
 
-	switch (type) {
-	case TOK_INFO:
-		printf("read %u total bytes\n", result->data.info.stats->total_bytes);
-		printf(
-			"read %u total records\n", result->data.info.stats->total_records);
-		printf("read %u total overlaps\n",
-			result->data.info.stats->total_overlaps);
-		printf("read %u total gaps\n", result->data.info.stats->total_gaps);
-		printf(
-			"address starts at 0x%08x\n", result->data.info.stats->addr_lowest);
-		printf(
-			"address ends at 0x%08x\n", result->data.info.stats->addr_highest);
+	switch (result->type) {
+		case HXQL_RESULT_INFO:
+			printf(
+				"read %u total bytes\n", result->data.info.stats->total_bytes);
+			printf("read %u total records\n",
+				result->data.info.stats->total_records);
+			printf("read %u total overlaps\n",
+				result->data.info.stats->total_overlaps);
+			printf("read %u total gaps\n", result->data.info.stats->total_gaps);
+			printf("address starts at 0x%08x\n",
+				result->data.info.stats->addr_lowest);
+			printf("address ends at 0x%08x\n",
+				result->data.info.stats->addr_highest);
+			break;
 
-		break;
+		case HXQL_RESULT_ENTRIES: {
+			memory_entry_t *entries = result->data.list.entries;
+			uint32_t count = result->data.list.count;
+			for (uint32_t i = 0; i < count; i++) {
+				if (!entries[i].is_data_record) {
+					continue;
+				}
+				printf("[0x%08x] ", entries[i].address);
+				for (uint8_t j = 0; j < entries[i].byte_count; j++) {
+					printf("%02x ", entries[i].bytes[j]);
+				}
+				printf("\n");
+			}
+			break;
+		}
+
+		case HXQL_RESULT_STATUS:
+			if (result->data.status.msg[0]) {
+				printf("%s\n", result->data.status.msg);
+			}
+			break;
+
+		default:
+			break;
 	}
+	putchar('\n');
 }
 
 hxptr_error_t hxsh_repl(hxsh_t *sh)
@@ -153,9 +180,11 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 
 	req.type = op;
 	switch (req.type) {
-	case TOK_INFO:
-		err = info_handler(p, &req.req.info_req);
-		break;
+		case TOK_INFO:
+			err = info_handler(p, &req.req.info_req);
+			break;
+		case TOK_LIST:
+			err = list_handler(p, &req.req.list_req);
 	}
 	if (err.code != HX_OK) {
 		return err;
@@ -204,17 +233,17 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 			tok_type = classify_token(arg, sub_cmds, count);
 
 			switch (tok_type) {
-			case TOK_REGIONS:
-			case TOK_MEMORY:
-			case TOK_STATS:
-			case TOK_DIAG:
-			case TOK_PROFILE:
-				req.args |= tok_type;
-				break;
+				case TOK_REGIONS:
+				case TOK_MEMORY:
+				case TOK_STATS:
+				case TOK_DIAG:
+				case TOK_PROFILE:
+					req.args |= tok_type;
+					break;
 
-			default:
-				return hxptr_err(HX_ERR_UNKN_ARG,
-					"unknown argument '%s' for info command", arg);
+				default:
+					return hxptr_err(HX_ERR_UNKN_ARG,
+						"unknown argument '%s' for info command", arg);
 			}
 
 			list += len;
@@ -228,6 +257,16 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 
 	// copy the data only if parsing succeeded
 	memcpy(out_data, &req, sizeof(req));
+
+	return hxptr_ok();
+}
+
+static hxptr_error_t list_handler(const char *args, void *out_data)
+{
+	if (!out_data) {
+		return hxptr_err(
+			HX_ERR_INVALID_ARG, "%s:%d: out_data is NULL", __FILE__, __LINE__);
+	}
 
 	return hxptr_ok();
 }

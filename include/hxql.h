@@ -23,24 +23,23 @@ typedef struct {
 } info_result_t;
 
 typedef struct {
+	memory_entry_t *entries;
+	uint32_t count;
+} list_result_t;
+
+typedef struct {
+	uint32_t address;
+	char msg[128];
+} status_result_t;
+
+typedef struct {
 	HxqlResultType_t type;
 	HxptrResult_t code;
 	char err[128];
 	union {
-		struct {
-			memory_entry_t *entries;
-			uint32_t count;
-		} entries;
-		struct {
-			memory_entry_t *matches;
-			uint32_t count;
-			uint32_t next_addr;
-		} search;
+		list_result_t list;
 		info_result_t info;
-		struct {
-			uint32_t address;
-			char msg[128];
-		} status;
+		status_result_t status;
 	} data;
 } hxql_result_t;
 

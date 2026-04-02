@@ -44,6 +44,10 @@ typedef enum {
 } HxshTokenType_t;
 
 typedef struct {
+
+} list_req_t;
+
+typedef struct {
 	uint32_t args;
 } info_req_t;
 
@@ -51,6 +55,7 @@ typedef struct {
 	HxshTokenType_t type;
 	union {
 		info_req_t info_req;
+		list_req_t list_req;
 	} req;
 
 } hxsh_req_t;
