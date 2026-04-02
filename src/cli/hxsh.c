@@ -94,50 +94,113 @@ static int get_token(char *input, char *out_tok, uint8_t toklen)
 	return i;
 }
 
-void render(hxql_result_t *result, HxshTokenType_t type)
+static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 {
+	uint8_t i = 0;
+	profile_region_t region;
+	profile_memory_t mem;
+
+	if (!profile) {
+		// do something
+		fprintf(stderr, "you shouldn't be here...\n");
+		return;
+	}
+
+	if (type == TOK_MEMORY) {
+		printf("name\tstart\tsize\t\n");
+		while (i < profile->mem_count) {
+			mem = profile->mem_blocks[i];
+			printf("%s\t0x%08x\t%u\t\n", mem.type, mem.start, mem.size);
+			i++;
+		}
+	} else if (type == TOK_REGIONS) {
+		printf("name\tstart\tend\tstatus\t\n");
+		while (i < profile->region_count) {
+			region = profile->regions[i];
+			printf("%s\t0x%08x\t0x%08x\t%s\t\n", region.name, region.start,
+				region.end, region.protected ? "yes" : "no");
+			i++;
+		}
+	} else if (type == TOK_PROFILE) {
+		printf("%s\t%s\t%s\t\n", profile->name, profile->arch, profile->vendor);
+	} else {
+		printf("you're not allowed here!\n");
+	}
+}
+
+static void stats_render(hxql_result_t *result)
+{
+	printf("read %u total bytes\n", result->data.info.stats->total_bytes);
+	printf("read %u total records\n", result->data.info.stats->total_records);
+	printf("read %u total overlaps\n", result->data.info.stats->total_overlaps);
+	printf("read %u total gaps\n", result->data.info.stats->total_gaps);
+	printf("address starts at 0x%08x\n", result->data.info.stats->addr_lowest);
+	printf("address ends at 0x%08x\n", result->data.info.stats->addr_highest);
+}
+
+void render(hxql_result_t *result)
+{
+	info_result_t res;
+	uint8_t info_prof = 0;
 	if (!result) {
 		return;
 	}
 
 	switch (result->type) {
 		case HXQL_RESULT_INFO:
-			printf(
-				"read %u total bytes\n", result->data.info.stats->total_bytes);
-			printf("read %u total records\n",
-				result->data.info.stats->total_records);
-			printf("read %u total overlaps\n",
-				result->data.info.stats->total_overlaps);
-			printf("read %u total gaps\n", result->data.info.stats->total_gaps);
-			printf("address starts at 0x%08x\n",
-				result->data.info.stats->addr_lowest);
-			printf("address ends at 0x%08x\n",
-				result->data.info.stats->addr_highest);
+			res = result->data.info;
+			info_prof |= (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY);
+
+			if ((res.args & info_prof)) {
+				if (!res.profile) {
+					fprintf(stderr,
+						"no mcu profile loaded for arguments 'memory', "
+						"'regions' and 'profile'\n");
+				} else {
+					if (res.args & TOK_MEMORY) {
+						profile_render(res.profile, TOK_MEMORY);
+					}
+
+					if (res.args & TOK_REGIONS) {
+						profile_render(res.profile, TOK_REGIONS);
+					}
+
+					if (res.args & TOK_PROFILE) {
+						profile_render(res.profile, TOK_PROFILE);
+					}
+				}
+			}
+
+			if (res.args & TOK_STATS) {
+				stats_render(result);
+			}
+
 			break;
 
-		case HXQL_RESULT_ENTRIES: {
-			memory_entry_t *entries = result->data.list.entries;
-			uint32_t count = result->data.list.count;
-			for (uint32_t i = 0; i < count; i++) {
-				if (!entries[i].is_data_record) {
-					continue;
-				}
-				printf("[0x%08x] ", entries[i].address);
-				for (uint8_t j = 0; j < entries[i].byte_count; j++) {
-					printf("%02x ", entries[i].bytes[j]);
-				}
-				printf("\n");
-			}
-			break;
-		}
+			// case HXQL_RESULT_ENTRIES: {
+			// 	memory_entry_t *entries = result->data.list.entries;
+			// 	uint32_t count = result->data.list.count;
+			// 	for (uint32_t i = 0; i < count; i++) {
+			// 		if (!entries[i].is_data_record) {
+			// 			continue;
+			// 		}
+			// 		printf("[0x%08x] ", entries[i].address);
+			// 		for (uint8_t j = 0; j < entries[i].byte_count; j++) {
+			// 			printf("%02x ", entries[i].bytes[j]);
+			// 		}
+			// 		printf("\n");
+			// 	}
+			// 	break;
+			// }
 
-		case HXQL_RESULT_STATUS:
-			if (result->data.status.msg[0]) {
-				printf("%s\n", result->data.status.msg);
-			}
-			break;
+			// case HXQL_RESULT_STATUS:
+			// 	if (result->data.status.msg[0]) {
+			// 		printf("%s\n", result->data.status.msg);
+			// 	}
+			// 	break;
 
 		default:
+			fprintf(stderr, "nothing to see here... yet\n");
 			break;
 	}
 	putchar('\n');
@@ -165,6 +228,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 
 	char *p = sh->cmd;
 
+	// get the initial token which is always considered the command/operation
 	len = get_token(p, cmd, sizeof(cmd));
 	p += len;
 
@@ -195,16 +259,19 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 		return err;
 	}
 
-	render(&result, op);
+	render(&result);
 
 	return hxptr_ok();
 }
 
+// handles the info command
+// args: the optional args passed via the shell for the command
+// out_data: the data that will be passed to the executor
 static hxptr_error_t info_handler(const char *args, void *out_data)
 {
 	if (!out_data) {
-		return hxptr_err(
-			HX_ERR_INVALID_ARG, "%s:%d: out_data is NULL", __FILE__, __LINE__);
+		return hxptr_err(HX_ERR_INVALID_ARG,
+			"%s:%d: info_handler(): out_data is NULL", __FILE__, __LINE__);
 	}
 
 	char *list = (char *) args;
@@ -212,7 +279,6 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 	int tok_type;
 	char arg[64];
 	info_req_t req = { 0 };
-	HxptrResult_t res;
 	uint8_t count;
 
 	token_map_t sub_cmds[] = {
@@ -251,7 +317,8 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 
 		// if get_token returned < 0, it's a parsing error
 		if (len < 0) {
-			return hxptr_err(HX_ERR_BAD_TOKEN, "invalid arg for info command");
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "invalid argument for info command");
 		}
 	}
 

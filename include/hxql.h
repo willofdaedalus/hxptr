@@ -11,15 +11,15 @@
 // list +15
 
 typedef enum {
-	HXQL_RESULT_ENTRIES,
-	HXQL_RESULT_SEARCH,
+	HXQL_RES_LIST,
 	HXQL_RESULT_INFO,
-	HXQL_RESULT_STATUS,
 } HxqlResultType_t;
 
 typedef struct {
 	hxptr_stats_t *stats;
-
+	mcu_profile_t *profile;
+	diagnostic_t *diagnostics;
+	uint8_t args;
 } info_result_t;
 
 typedef struct {

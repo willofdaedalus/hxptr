@@ -42,6 +42,8 @@ static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 			fprintf(stderr, "%s\n", err.msg);
 			return err.code;
 		}
+	} else {
+		(*hx)->profile = NULL;
 	}
 
 	err = hxptr_load_file(*hx, file);
@@ -72,37 +74,37 @@ int main(int ac, char **av)
 
 	while ((c = getopt(ac, av, "f:p:")) != -1) {
 		switch (c) {
-		case 'f':
-			if (strlen(optarg) > MAX_ARG_LEN) {
-				fprintf(stderr,
-					"fatal: hex file name longer than "
-					"allowed\n");
-				fprintf(stderr,
-					"fatal: consider moving the file or "
-					"renaming it\n");
-				return -1;
-			}
+			case 'f':
+				if (strlen(optarg) > MAX_ARG_LEN) {
+					fprintf(stderr,
+						"fatal: hex file name longer than "
+						"allowed\n");
+					fprintf(stderr,
+						"fatal: consider moving the file or "
+						"renaming it\n");
+					return -1;
+				}
 
-			strncpy(filename, optarg, sizeof(filename) - 1);
-			filename[sizeof(filename) - 1] = '\0';
-			fflag = 1;
-			break;
+				strncpy(filename, optarg, sizeof(filename) - 1);
+				filename[sizeof(filename) - 1] = '\0';
+				fflag = 1;
+				break;
 
-		case 'p':
-			if (strlen(optarg) > MAX_ARG_LEN) {
-				fprintf(stderr,
-					"fatal: profile file name longer than "
-					"allowed\n");
-				fprintf(stderr,
-					"fatal: consider moving the file or "
-					"renaming it\n");
-				return -1;
-			}
+			case 'p':
+				if (strlen(optarg) > MAX_ARG_LEN) {
+					fprintf(stderr,
+						"fatal: profile file name longer than "
+						"allowed\n");
+					fprintf(stderr,
+						"fatal: consider moving the file or "
+						"renaming it\n");
+					return -1;
+				}
 
-			strncpy(profilename, optarg, sizeof(filename) - 1);
-			profilename[sizeof(profilename) - 1] = '\0';
-			pflag = 1;
-			break;
+				strncpy(profilename, optarg, sizeof(filename) - 1);
+				profilename[sizeof(profilename) - 1] = '\0';
+				pflag = 1;
+				break;
 		}
 	}
 	ac -= optind;
