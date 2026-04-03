@@ -6,6 +6,7 @@
 #define HXQL_MAX_TOKENS   0x20
 #define HXQL_CMD_LEN      0x100
 #define HXQL_LIST_DEFAULT 0x0f
+#define INFO_PROF_MASK    (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
 
 
 #include "hxptr.h"
@@ -44,6 +45,9 @@ typedef enum {
 } HxshTokenType_t;
 
 typedef struct {
+	uint32_t start_addr;
+	uint32_t end_addr;
+	uint16_t count;
 
 } list_req_t;
 

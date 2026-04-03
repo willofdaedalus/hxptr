@@ -1,5 +1,6 @@
 #include "hxsh.h"
 #include "hxql.h"
+#include "hxsh_table.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,7 @@ static const token_map_t token_map[] = {
 	{ "list",    TOK_LIST    },
 	{ "help",    TOK_HELP    },
 	{ "quit",    TOK_QUIT    },
+	// args
 	{ "regions", TOK_REGIONS },
 	{ "memory",  TOK_MEMORY  },
 	{ "stats",   TOK_STATS   },
@@ -99,6 +101,7 @@ static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 	uint8_t i = 0;
 	profile_region_t region;
 	profile_memory_t mem;
+	hxsh_table_t t;
 
 	if (!profile) {
 		// do something
@@ -106,23 +109,46 @@ static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 		return;
 	}
 
+	table_init(&t);
 	if (type == TOK_MEMORY) {
-		printf("name\tstart\tsize\t\n");
-		while (i < profile->mem_count) {
+		char s_start[16], s_size[16];
+
+		const char *headers[] = { "name", "start", "size" };
+		table_set_headers(&t, headers, 3);
+
+		for (uint8_t i = 0; i < profile->mem_count; i++) {
 			mem = profile->mem_blocks[i];
-			printf("%s\t0x%08x\t%u\t\n", mem.type, mem.start, mem.size);
-			i++;
+			snprintf(s_start, sizeof(s_start), "0x%08x", mem.start);
+			snprintf(s_size, sizeof(s_size), "%u", mem.size);
+			const char *row[] = { mem.type, s_start, s_size };
+			table_add_row(&t, row, 3);
 		}
+
+		table_render(&t, "memory info");
+
 	} else if (type == TOK_REGIONS) {
-		printf("name\tstart\tend\tstatus\t\n");
-		while (i < profile->region_count) {
+		char s_start[16], s_end[16];
+
+		const char *headers[] = { "name", "start", "end", "protected" };
+		table_set_headers(&t, headers, 4);
+
+		for (uint8_t i = 0; i < profile->region_count; i++) {
 			region = profile->regions[i];
-			printf("%s\t0x%08x\t0x%08x\t%s\t\n", region.name, region.start,
-				region.end, region.protected ? "yes" : "no");
-			i++;
+			snprintf(s_start, sizeof(s_start), "0x%08x", region.start);
+			snprintf(s_end, sizeof(s_end), "0x%08x", region.end);
+			const char *row[] = { region.name, s_start, s_end,
+				region.protected ? "yes" : "no" };
+			table_add_row(&t, row, 4);
 		}
+
+		table_render(&t, "regions info");
 	} else if (type == TOK_PROFILE) {
-		printf("%s\t%s\t%s\t\n", profile->name, profile->arch, profile->vendor);
+		const char *headers[] = { "name", "architecture", "vendor" };
+		const char *row[] = { profile->name, profile->arch, profile->vendor };
+
+		table_set_headers(&t, headers, 3);
+		table_add_row(&t, row, 4);
+		table_render(&t, "profile info");
 	} else {
 		printf("you're not allowed here!\n");
 	}
@@ -130,18 +156,21 @@ static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 
 static void stats_render(hxql_result_t *result)
 {
-	printf("read %u total bytes\n", result->data.info.stats->total_bytes);
-	printf("read %u total records\n", result->data.info.stats->total_records);
-	printf("read %u total overlaps\n", result->data.info.stats->total_overlaps);
-	printf("read %u total gaps\n", result->data.info.stats->total_gaps);
-	printf("address starts at 0x%08x\n", result->data.info.stats->addr_lowest);
-	printf("address ends at 0x%08x\n", result->data.info.stats->addr_highest);
+	hxptr_stats_t *s = result->data.info.stats;
+
+	printf("\nstats\n");
+	printf("  %-20s %u\n", "total bytes", s->total_bytes);
+	printf("  %-20s %u\n", "total records", s->total_records);
+	printf("  %-20s %u\n", "total overlaps", s->total_overlaps);
+	printf("  %-20s %u\n", "total gaps", s->total_gaps);
+	printf("  %-20s %u bytes\n", "largest gap", s->largest_gap);
+	printf("  %-20s 0x%08x\n", "lowest address", s->addr_lowest);
+	printf("  %-20s 0x%08x\n", "highest address", s->addr_highest);
 }
 
 void render(hxql_result_t *result)
 {
 	info_result_t res;
-	uint8_t info_prof = 0;
 	if (!result) {
 		return;
 	}
@@ -149,9 +178,8 @@ void render(hxql_result_t *result)
 	switch (result->type) {
 		case HXQL_RESULT_INFO:
 			res = result->data.info;
-			info_prof |= (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY);
 
-			if ((res.args & info_prof)) {
+			if (res.args & INFO_PROF_MASK) {
 				if (!res.profile) {
 					fprintf(stderr,
 						"no mcu profile loaded for arguments 'memory', "
@@ -160,11 +188,9 @@ void render(hxql_result_t *result)
 					if (res.args & TOK_MEMORY) {
 						profile_render(res.profile, TOK_MEMORY);
 					}
-
 					if (res.args & TOK_REGIONS) {
 						profile_render(res.profile, TOK_REGIONS);
 					}
-
 					if (res.args & TOK_PROFILE) {
 						profile_render(res.profile, TOK_PROFILE);
 					}
@@ -172,6 +198,7 @@ void render(hxql_result_t *result)
 			}
 
 			if (res.args & TOK_STATS) {
+				printf("\nstats info\n");
 				stats_render(result);
 			}
 
@@ -333,6 +360,10 @@ static hxptr_error_t list_handler(const char *args, void *out_data)
 	if (!out_data) {
 		return hxptr_err(
 			HX_ERR_INVALID_ARG, "%s:%d: out_data is NULL", __FILE__, __LINE__);
+	}
+
+	if (!args) {
+		// default behaviour
 	}
 
 	return hxptr_ok();
