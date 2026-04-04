@@ -5,7 +5,7 @@
 
 #define TABLE_MAX_COLS 8
 #define TABLE_MAX_ROWS 64
-#define TABLE_MAX_CELL 32
+#define TABLE_MAX_CELL 512
 
 typedef struct {
 	char headers[TABLE_MAX_COLS][TABLE_MAX_CELL];

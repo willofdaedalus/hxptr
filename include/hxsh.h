@@ -36,10 +36,13 @@ typedef enum {
 	TOK_RANGE,
 	TOK_DOT,
 	TOK_NUMBER,
+	TOK_BARE_HEX,
+	TOK_DEC,
 
 	// meta
 	TOK_PLUS,
 	TOK_MINUS,
+	TOK_COLON,
 	TOK_EOF,
 	TOK_UNKNOWN = -1,
 } HxshTokenType_t;
@@ -48,7 +51,7 @@ typedef struct {
 	uint32_t start_addr;
 	uint32_t end_addr;
 	uint16_t count;
-
+	uint8_t is_range;
 } list_req_t;
 
 typedef struct {

@@ -12,7 +12,7 @@
 
 typedef enum {
 	HXQL_RES_LIST,
-	HXQL_RESULT_INFO,
+	HXQL_RES_INFO,
 } HxqlResultType_t;
 
 typedef struct {
@@ -23,8 +23,8 @@ typedef struct {
 } info_result_t;
 
 typedef struct {
-	memory_entry_t *entries;
-	uint32_t count;
+	memory_entry_t *start;
+	uint16_t count;
 } list_result_t;
 
 typedef struct {
@@ -44,6 +44,6 @@ typedef struct {
 } hxql_result_t;
 
 hxptr_error_t hxql_execute_cmd(
-	hxsh_t *sh, hxsh_req_t *req, hxql_result_t *result);
+	hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result);
 
 #endif

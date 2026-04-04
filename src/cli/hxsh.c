@@ -7,7 +7,7 @@
 #include <string.h>
 
 static hxptr_error_t info_handler(const char *args, void *out_data);
-static hxptr_error_t list_handler(const char *args, void *out_data);
+static hxptr_error_t list_handler(hxsh_t *hx, const char *args, void *out_data);
 
 // out_tok map
 static const token_map_t token_map[] = {
@@ -27,42 +27,73 @@ static const token_map_t token_map[] = {
 };
 static const size_t token_map_count = sizeof(token_map) / sizeof(token_map[0]);
 
-static int classify_token(const char *tok, token_map_t *inputs, int inputs_len)
+static HxshTokenType_t classify_token(
+	const char *tok, token_map_t *inputs, int inputs_len)
 {
-	for (uint8_t i = 0; i < inputs_len; i++) {
-		if (strcmp(tok, inputs[i].name) == 0) {
-			return inputs[i].type;
-		}
-	}
-
-	if (strcmp(tok, ".") == 0) {
-		return TOK_DOT;
-	}
-
-	if (isxdigit((unsigned char) tok[0])) {
-		int colon = 0;
-		int i = 0;
-
-		while (tok[i] && (isxdigit((unsigned char) tok[i]) || tok[i] == ':')) {
-			if (tok[i] == ':') {
-				if (colon) {
-					// this is an error
-					return TOK_UNKNOWN;
-				}
-				colon = 1;
+	// keyword table lookup first
+	if (inputs) {
+		for (uint8_t i = 0; i < inputs_len; i++) {
+			if (strcmp(tok, inputs[i].name) == 0) {
+				return inputs[i].type;
 			}
-			i++;
 		}
+	}
 
-		if (!isxdigit((unsigned char) tok[i])) {
+	// 0x prefixed hex; unambiguous address
+	if (tok[0] == '0' && (tok[1] == 'x' || tok[1] == 'X')) {
+		const char *p = &tok[2];
+		if (*p == '\0') {
+			// bare "0x" with nothing after
 			return TOK_UNKNOWN;
 		}
 
-		return colon ? TOK_RANGE : TOK_HEX;
+		while (*p) {
+			if (!isxdigit((unsigned char) *p)) {
+				return TOK_UNKNOWN;
+			}
+			p++;
+		}
+		return TOK_HEX;
 	}
 
-	if (tok[0] == '+' || tok[0] == '-') {
-		return TOK_NUMBER;
+	// plain decimal; all digits, no hex chars
+	if (isdigit((unsigned char) tok[0])) {
+		const char *p = tok;
+		int is_dec = 1;
+
+		while (*p) {
+			if (!isdigit((unsigned char) *p)) {
+				is_dec = 0;
+				break;
+			}
+			p++;
+		}
+
+		if (is_dec) {
+			return TOK_DEC;
+		}
+
+		// has non-decimal digit chars; check if all are hex
+		p = tok;
+		while (*p) {
+			if (!isxdigit((unsigned char) *p)) {
+				return TOK_UNKNOWN;
+			}
+			p++;
+		}
+		return TOK_BARE_HEX;
+	}
+
+	// starts with a-f/A-F; could be a bare hex pattern byte
+	if (isxdigit((unsigned char) tok[0])) {
+		const char *p = tok;
+		while (*p) {
+			if (!isxdigit((unsigned char) *p)) {
+				return TOK_UNKNOWN;
+			}
+			p++;
+		}
+		return TOK_BARE_HEX;
 	}
 
 	return TOK_UNKNOWN;
@@ -154,11 +185,64 @@ static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 	}
 }
 
+static void list_render(hxql_result_t *result)
+{
+	static const char hex_map[] = "0123456789abcdef";
+	list_result_t res = result->data.list;
+	hxsh_table_t t;
+	const char *headers[] = { "address", "data" };
+
+	// get max width for proper alignment
+	uint8_t max_row_width = 0;
+	for (uint16_t j = 0; j < res.count; j++) {
+		if (res.start[j].byte_count > max_row_width) {
+			max_row_width = res.start[j].byte_count;
+		}
+	}
+
+
+	if (max_row_width == 0) {
+		max_row_width = 16;
+	}
+
+	table_init(&t);
+	table_set_headers(&t, headers, 2);
+
+	for (uint16_t i = 0; i < res.count; i++) {
+		memory_entry_t *entry = &res.start[i];
+		char addr[16];
+		// allocate string for exactly the max width found
+		char data_str[(max_row_width * 3) + 1];
+
+		snprintf(addr, sizeof(addr), "0x%08x", entry->address);
+		for (uint8_t j = 0; j < max_row_width; j++) {
+			int offset = j * 3;
+
+			if (j < entry->byte_count) {
+				uint8_t b = entry->bytes[j];
+				data_str[offset] = hex_map[(b >> 4) & 0x0f];
+				data_str[offset + 1] = hex_map[b & 0x0f];
+			} else {
+				// pad the "empty" space with dashes
+				data_str[offset] = '-';
+				data_str[offset + 1] = '-';
+			}
+			// space between bytes, null at the very end of the string
+			data_str[offset + 2] = (j == max_row_width - 1) ? '\0' : ' ';
+		}
+
+		const char *row[] = { addr, data_str };
+		table_add_row(&t, row, 2);
+	}
+
+	table_render(&t, "list entries");
+}
+
 static void stats_render(hxql_result_t *result)
 {
 	hxptr_stats_t *s = result->data.info.stats;
 
-	printf("\nstats\n");
+	printf("\nstats info\n");
 	printf("  %-20s %u\n", "total bytes", s->total_bytes);
 	printf("  %-20s %u\n", "total records", s->total_records);
 	printf("  %-20s %u\n", "total overlaps", s->total_overlaps);
@@ -176,7 +260,7 @@ void render(hxql_result_t *result)
 	}
 
 	switch (result->type) {
-		case HXQL_RESULT_INFO:
+		case HXQL_RES_INFO:
 			res = result->data.info;
 
 			if (res.args & INFO_PROF_MASK) {
@@ -198,33 +282,13 @@ void render(hxql_result_t *result)
 			}
 
 			if (res.args & TOK_STATS) {
-				printf("\nstats info\n");
 				stats_render(result);
 			}
-
 			break;
 
-			// case HXQL_RESULT_ENTRIES: {
-			// 	memory_entry_t *entries = result->data.list.entries;
-			// 	uint32_t count = result->data.list.count;
-			// 	for (uint32_t i = 0; i < count; i++) {
-			// 		if (!entries[i].is_data_record) {
-			// 			continue;
-			// 		}
-			// 		printf("[0x%08x] ", entries[i].address);
-			// 		for (uint8_t j = 0; j < entries[i].byte_count; j++) {
-			// 			printf("%02x ", entries[i].bytes[j]);
-			// 		}
-			// 		printf("\n");
-			// 	}
-			// 	break;
-			// }
-
-			// case HXQL_RESULT_STATUS:
-			// 	if (result->data.status.msg[0]) {
-			// 		printf("%s\n", result->data.status.msg);
-			// 	}
-			// 	break;
+		case HXQL_RES_LIST:
+			list_render(result);
+			break;
 
 		default:
 			fprintf(stderr, "nothing to see here... yet\n");
@@ -275,13 +339,13 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 			err = info_handler(p, &req.req.info_req);
 			break;
 		case TOK_LIST:
-			err = list_handler(p, &req.req.list_req);
+			err = list_handler(sh, p, &req.req.list_req);
 	}
 	if (err.code != HX_OK) {
 		return err;
 	}
 
-	err = hxql_execute_cmd(sh, &req, &result);
+	err = hxql_execute_cmd(sh->hx, &req, &result);
 	if (err.code != HX_OK) {
 		return err;
 	}
@@ -355,18 +419,239 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 	return hxptr_ok();
 }
 
-static hxptr_error_t list_handler(const char *args, void *out_data)
+// helper -- resolves TOK_DOT or TOK_HEX to a uint32_t
+static int resolve_base(
+	hxsh_t *sh, HxshTokenType_t type, const char *raw, uint32_t *out)
 {
+	if (type == TOK_DOT) {
+		*out = sh->cur_idx;
+		return 0;
+	}
+	if (type == TOK_HEX) {
+		char *end;
+		*out = (uint32_t) strtoul(raw, &end, 16);
+		if (end == raw || *end != '\0') {
+			return -1;
+		}
+		return 0;
+	}
+	return -1;
+}
+
+// helper -- resolves TOK_DEC or TOK_HEX to a uint32_t count/offset
+static int resolve_num(HxshTokenType_t type, const char *raw, uint32_t *out)
+{
+	if (type == TOK_DEC) {
+		char *end;
+		*out = (uint32_t) strtoul(raw, &end, 10);
+		if (end == raw || *end != '\0') {
+			return -1;
+		}
+		return 0;
+	}
+	if (type == TOK_HEX) {
+		char *end;
+		*out = (uint32_t) strtoul(raw, &end, 16);
+		if (end == raw || *end != '\0') {
+			return -1;
+		}
+		return 0;
+	}
+	return -1;
+}
+
+static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
+{
+	list_req_t req = { 0 };
+	char arg[64];
+	char *list = (char *) args;
+	int len;
+	HxshTokenType_t tok_type;
+
+	// token map for structural tokens only
+	// keywords handled by classify_token natively
+	token_map_t sub_cmds[] = {
+		{ ".", TOK_DOT   },
+		{ "+", TOK_PLUS  },
+		{ "-", TOK_MINUS },
+		{ ":", TOK_COLON },
+	};
+	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
+
+	if (!sh) {
+		return hxptr_err(HX_ERR_NULL, "%s:%d: list_handler(): sh is NULL",
+			__FILE__, __LINE__);
+	}
+
 	if (!out_data) {
+		return hxptr_err(HX_ERR_INVALID_ARG,
+			"%s:%d: list_handler(): out_data is NULL", __FILE__, __LINE__);
+	}
+
+	// no args; default behaviour
+	if (!args || !*args) {
+		req.start_addr = sh->cur_idx;
+		req.count = HXQL_LIST_DEFAULT;
+		req.is_range = 0;
+		memcpy(out_data, &req, sizeof(req));
+
+		return hxptr_ok();
+	}
+
+	// --- token 1: must be +/-/./addr ---
+	len = get_token(list, arg, sizeof(arg));
+	if (len <= 0) {
 		return hxptr_err(
-			HX_ERR_INVALID_ARG, "%s:%d: out_data is NULL", __FILE__, __LINE__);
+			HX_ERR_BAD_TOKEN, "list: failed to read first argument");
+	}
+	list += len;
+
+	tok_type = classify_token(arg, sub_cmds, count);
+
+	// case: list + <num> or list - <num>
+	if (tok_type == TOK_PLUS || tok_type == TOK_MINUS) {
+		char num[64];
+		len = get_token(list, num, sizeof(num));
+		if (len <= 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: expected a number after '%s'", arg);
+		}
+		list += len;
+
+		HxshTokenType_t num_type = classify_token(num, NULL, 0);
+		uint32_t offset;
+		if (resolve_num(num_type, num, &offset) != 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: '%s' is not a valid number", num);
+		}
+
+		// no trailing tokens allowed
+		char extra[64];
+		if (get_token(list, extra, sizeof(extra)) > 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: unexpected token '%s' after offset", extra);
+		}
+
+		// start
+		req.start_addr =
+			(tok_type == TOK_PLUS) ? sh->cur_idx : sh->cur_idx - offset;
+		req.count = (uint16_t) offset;
+		memcpy(out_data, &req, sizeof(req));
+
+		return hxptr_ok();
 	}
 
-	if (!args) {
-		// default behaviour
+	// case: list . or list addr -- resolve base first
+	if (tok_type != TOK_DOT && tok_type != TOK_HEX) {
+		return hxptr_err(HX_ERR_BAD_TOKEN,
+			"list: unexpected token '%s', expected address or '.'", arg);
 	}
 
-	return hxptr_ok();
+	uint32_t base;
+	if (resolve_base(sh, tok_type, arg, &base) != 0) {
+		return hxptr_err(
+			HX_ERR_BAD_TOKEN, "list: could not resolve address '%s'", arg);
+	}
+
+	// peek at token 2
+	char tok2[64];
+	len = get_token(list, tok2, sizeof(tok2));
+
+	// case: list . or list addr -- nothing follows
+	if (len <= 0) {
+		req.start_addr = base;
+		req.count = HXQL_LIST_DEFAULT;
+		req.is_range = 0;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
+	}
+	list += len;
+
+	HxshTokenType_t tok2_type = classify_token(tok2, sub_cmds, count);
+
+	// case: list . : addr or list addr : addr or list addr : .
+	if (tok2_type == TOK_COLON) {
+		char tok3[64];
+		len = get_token(list, tok3, sizeof(tok3));
+		if (len <= 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: expected address after ':'");
+		}
+		list += len;
+
+		HxshTokenType_t tok3_type = classify_token(tok3, sub_cmds, count);
+
+		// list . : . is invalid -- no meaningful end point
+		if (tok3_type == TOK_DOT && base == sh->cur_idx) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: '. : .' is ambiguous, use an explicit end address");
+		}
+
+		uint32_t end;
+		if (resolve_base(sh, tok3_type, tok3, &end) != 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: could not resolve end address '%s'", tok3);
+		}
+
+		if (end <= base) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: end address 0x%08x must be greater than "
+				"start address 0x%08x",
+				end, base);
+		}
+
+		// no trailing tokens allowed
+		char extra[64];
+		if (get_token(list, extra, sizeof(extra)) > 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: unexpected token '%s' after range", extra);
+		}
+
+		req.start_addr = base;
+		req.end_addr = end;
+		req.is_range = 1;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
+	}
+
+	// case: list . + <num> or list . - <num>
+	//       list addr + <num> or list addr - <num>
+	if (tok2_type == TOK_PLUS || tok2_type == TOK_MINUS) {
+		int8_t sign = (tok2_type == TOK_PLUS) ? +1 : -1;
+
+		char tok3[64];
+		len = get_token(list, tok3, sizeof(tok3));
+		if (len <= 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: expected a number after '%s'", tok2);
+		}
+		list += len;
+
+		HxshTokenType_t tok3_type = classify_token(tok3, NULL, 0);
+		uint32_t offset;
+		if (resolve_num(tok3_type, tok3, &offset) != 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: '%s' is not a valid number", tok3);
+		}
+
+		// no trailing tokens allowed
+		char extra[64];
+		if (get_token(list, extra, sizeof(extra)) > 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: unexpected token '%s'", extra);
+		}
+
+		// case: list addr + <num> or list addr - <num>
+		req.start_addr = (sign == +1) ? base : base - offset;
+		req.count = (uint16_t) offset;
+		req.is_range = 0;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
+	}
+
+	// anything else after the base address is an error
+	return hxptr_err(
+		HX_ERR_BAD_TOKEN, "list: unexpected token '%s' after address", tok2);
 }
 
 hxsh_t *hxsh_init(hxptr_t *core)
@@ -382,7 +667,7 @@ hxsh_t *hxsh_init(hxptr_t *core)
 	}
 
 	hx->hx = core;
-	hx->cur_idx = 0;
+	hx->cur_idx = core->stats->addr_lowest;
 	hx->search_addr = 0;
 	hx->running = 1;
 
