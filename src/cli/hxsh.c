@@ -302,8 +302,8 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 	}
 
 	char *list = (char *) args;
-	int len = 0;
-	int tok_type;
+	int len;
+	HxshTokenType_t tok_type;
 	char arg[64];
 	info_req_t req = { 0 };
 	uint8_t count;
