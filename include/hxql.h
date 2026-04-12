@@ -11,8 +11,9 @@
 // list +15
 
 typedef enum {
-	HXQL_RES_LIST,
+	HXQL_RES_LIST = 1,
 	HXQL_RES_INFO,
+	HXQL_RES_WHICH,
 } HxqlResultType_t;
 
 typedef struct {
@@ -21,6 +22,14 @@ typedef struct {
 	diagnostic_t *diagnostics;
 	uint8_t args;
 } info_result_t;
+
+
+typedef struct {
+	uint32_t cur_addr;
+	char region[MAX_OBJ_LEN];
+	char memory[MAX_OBJ_LEN];
+	uint8_t args;
+} which_result_t;
 
 typedef struct {
 	memory_entry_t *start;
@@ -39,6 +48,7 @@ typedef struct {
 	union {
 		list_result_t list;
 		info_result_t info;
+		which_result_t which;
 		status_result_t status;
 	} data;
 } hxql_result_t;

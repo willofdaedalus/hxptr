@@ -8,13 +8,15 @@
 
 static hxptr_error_t info_handler(const char *args, void *out_data);
 static hxptr_error_t list_handler(hxsh_t *hx, const char *args, void *out_data);
+static hxptr_error_t which_handler(
+	hxsh_t *sh, const char *args, void *out_data);
 
 // out_tok map
 static const token_map_t token_map[] = {
 	{ "info",    TOK_INFO    },
 	{ "search",  TOK_SEARCH  },
 	{ "goto",    TOK_GOTO    },
-	{ "frame",   TOK_FRAME   },
+	{ "which",   TOK_WHICH   },
 	{ "list",    TOK_LIST    },
 	{ "help",    TOK_HELP    },
 	{ "quit",    TOK_QUIT    },
@@ -37,6 +39,8 @@ static HxshTokenType_t classify_token(
 				return inputs[i].type;
 			}
 		}
+		// at this point I don't expect the token to be here if it's not already
+		return TOK_UNKNOWN;
 	}
 
 	// 0x prefixed hex; unambiguous address
@@ -127,6 +131,7 @@ static int get_token(char *input, char *out_tok, uint8_t toklen)
 	return i;
 }
 
+
 static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 {
 	uint8_t i = 0;
@@ -187,7 +192,7 @@ static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 
 static void list_render(hxql_result_t *result)
 {
-	static const char hex_map[] = "0123456789abcdef";
+	char hex_map[] = "0123456789abcdef";
 	list_result_t res = result->data.list;
 	hxsh_table_t t;
 	const char *headers[] = { "address", "data" };
@@ -341,10 +346,18 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	req.type = op;
 	switch (req.type) {
 		case TOK_INFO:
-			err = info_handler(p, &req.req.info_req);
+			err = info_handler(p, &req.req_type.info_req);
 			break;
 		case TOK_LIST:
-			err = list_handler(sh, p, &req.req.list_req);
+			err = list_handler(sh, p, &req.req_type.list_req);
+			break;
+		case TOK_WHICH:
+			err = which_handler(sh, p, &req.req_type.which_req);
+			if (req.req_type.which_req.args == TOK_WH_ADDR) {
+				printf("0x%08x\n", sh->cur_idx);
+				return hxptr_ok();
+			}
+			break;
 	}
 	if (err.code != HX_OK) {
 		return err;
@@ -388,8 +401,7 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 
 	if (!args || !*args) {
 		// no arguments: request everything
-		req.args =
-			TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE;
+		req.args = INFO_ALL_ARGS;
 	} else {
 		while ((len = get_token(list, arg, sizeof(arg))) > 0) {
 			tok_type = classify_token(arg, sub_cmds, count);
@@ -410,13 +422,6 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 
 			list += len;
 		}
-
-		// if get_token returned < 0, it's a parsing error
-		// if (len <= 0) {
-		// printf("here!");
-		// return hxptr_err(
-		// 	HX_ERR_BAD_TOKEN, "invalid argument for info command");
-		// }
 	}
 
 	// copy the data only if parsing succeeded
@@ -464,6 +469,57 @@ static int resolve_num(HxshTokenType_t type, const char *raw, uint32_t *out)
 		return 0;
 	}
 	return -1;
+}
+
+static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
+{
+	// which address
+	// which region
+	// which memory
+	// which
+	int len;
+	char *list = (char *) args;
+	HxshTokenType_t tok_type;
+	which_req_t req = { 0 };
+	char arg[64];
+
+	token_map_t sub_cmds[] = {
+		{ "address", TOK_WH_ADDR   },
+		{ "addr",    TOK_WH_ADDR   },
+		{ "region",  TOK_WH_REGION },
+		{ "memory",  TOK_WH_MEMORY },
+	};
+	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
+
+	if (!sh) {
+		return hxptr_err(HX_ERR_NULL, "%s:%d: which_handler(): sh is NULL",
+			__FILE__, __LINE__);
+	}
+
+	while ((len = get_token(list, arg, sizeof(arg))) > 0) {
+		tok_type = classify_token(arg, sub_cmds, count);
+
+		switch (tok_type) {
+			// bug here from gdb, investigate
+			case TOK_WH_ADDR:
+				printf("0x%08x\n", sh->cur_idx);
+				break;
+
+			case TOK_WH_REGION:
+			case TOK_WH_MEMORY:
+				req.args |= tok_type;
+				break;
+
+			default:
+				return hxptr_err(HX_ERR_UNKN_ARG,
+					"unknown argument '%s' for which command", arg);
+		}
+
+		list += len;
+	}
+	memcpy(out_data, &req, sizeof(req));
+
+	return hxptr_ok();
 }
 
 static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)

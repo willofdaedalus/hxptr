@@ -7,9 +7,10 @@
 #define HXQL_CMD_LEN      0x100
 #define HXQL_LIST_DEFAULT 0x0f
 #define INFO_PROF_MASK    (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
+#define WHICH_MASK        (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
 #define INFO_ALL_ARGS                                               \
 	(TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
-
+#define UNUSED(x) ((void) (x))
 
 #include "hxptr.h"
 #include <stdint.h>
@@ -28,10 +29,15 @@ typedef enum {
 	TOK_INFO,
 	TOK_SEARCH,
 	TOK_GOTO,
-	TOK_FRAME,
+	TOK_WHICH,
 	TOK_LIST,
 	TOK_HELP,
 	TOK_QUIT,
+
+	// "which" cmd types
+	TOK_WH_ADDR = (1 << 0),
+	TOK_WH_REGION = (1 << 1),
+	TOK_WH_MEMORY = (1 << 2),
 
 	// argument types
 	TOK_HEX,
@@ -61,11 +67,16 @@ typedef struct {
 } info_req_t;
 
 typedef struct {
+	uint32_t args;
+} which_req_t;
+
+typedef struct {
 	HxshTokenType_t type;
 	union {
+		which_req_t which_req;
 		info_req_t info_req;
 		list_req_t list_req;
-	} req;
+	} req_type;
 
 } hxsh_req_t;
 

@@ -14,6 +14,7 @@
 #define MAX_BYTES             0xff
 #define DISP_MAX_WIDTH        0x20
 #define MAX_DIRECTIVE_LEN     0x10
+#define MAX_OBJ_LEN           0x10
 
 typedef enum {
 	HX_OK = 0,
@@ -133,13 +134,13 @@ typedef struct {
 } hxptr_stats_t;
 
 typedef struct {
-	char type[16];
+	char type[MAX_OBJ_LEN];
 	uint32_t start;
 	uint32_t size;
 } profile_memory_t;
 
 typedef struct {
-	char name[16];
+	char name[MAX_OBJ_LEN];
 	uint32_t start;
 	uint32_t end;
 	uint8_t protected;

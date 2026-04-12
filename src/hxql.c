@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+info_result_t info_res;
+which_result_t which_res;
+list_result_t list_res;
+
 static memory_entry_t *find_entry_by_addr(sparse_memory_t *mem, uint32_t addr)
 {
 	if (!mem || mem->count == 0) {
@@ -34,14 +38,13 @@ hxptr_error_t hxql_execute_cmd(
 {
 	// sparse_memory_t *mem;
 	info_req_t info_req;
-	info_result_t info_res = { 0 };
+	which_req_t which_req;
 	list_req_t list_req;
-	list_result_t list_res = { 0 };
 	memory_entry_t *start;
 
 	switch (req->type) {
 		case TOK_INFO:
-			info_req = req->req.info_req;
+			info_req = req->req_type.info_req;
 			result->type = HXQL_RES_INFO;
 
 			if (info_req.args & TOK_STATS) {
@@ -56,6 +59,8 @@ hxptr_error_t hxql_execute_cmd(
 				} else {
 					info_res.profile = NULL;
 				}
+				// extract only those that were set in the request into the
+				// result
 				info_res.args |= (info_req.args & INFO_PROF_MASK);
 			}
 			if (info_req.args & TOK_DIAG) {
@@ -68,7 +73,7 @@ hxptr_error_t hxql_execute_cmd(
 			break;
 
 		case TOK_LIST:
-			list_req = req->req.list_req;
+			list_req = req->req_type.list_req;
 			result->type = HXQL_RES_LIST;
 
 			// subtract start_addr from addr_lowest
@@ -83,6 +88,20 @@ hxptr_error_t hxql_execute_cmd(
 
 			result->code = HX_OK;
 			memcpy(&result->data.list, &list_res, sizeof(list_res));
+			break;
+
+		case TOK_WHICH:
+			which_req = req->req_type.which_req;
+			result->type = HXQL_RES_WHICH;
+
+			if (which_req.args & TOK_WH_REGION) {
+			}
+
+			if (which_req.args & TOK_WH_MEMORY) {
+			}
+
+			result->code = HX_OK;
+			memcpy(&result->data.which, &which_res, sizeof(which_res));
 			break;
 
 		default:
