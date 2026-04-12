@@ -333,6 +333,11 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 			HX_ERR_UNKNOWN_CMD, "unknown command '%s'. try 'help'", cmd);
 	}
 
+	// trim leading whitespace from remaining args
+	while (isspace((unsigned char) *p)) {
+		p++;
+	}
+
 	req.type = op;
 	switch (req.type) {
 		case TOK_INFO:
@@ -407,10 +412,11 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 		}
 
 		// if get_token returned < 0, it's a parsing error
-		if (len < 0) {
-			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "invalid argument for info command");
-		}
+		// if (len <= 0) {
+		// printf("here!");
+		// return hxptr_err(
+		// 	HX_ERR_BAD_TOKEN, "invalid argument for info command");
+		// }
 	}
 
 	// copy the data only if parsing succeeded
@@ -490,19 +496,15 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	// no args; default behaviour
 	if (!args || !*args) {
-		req.start_addr = sh->cur_idx;
-		req.count = HXQL_LIST_DEFAULT;
-		req.is_range = 0;
-		memcpy(out_data, &req, sizeof(req));
-
-		return hxptr_ok();
+		goto default_action;
 	}
 
-	// --- token 1: must be +/-/./addr ---
+	// token 1: must be +/-/./addr
 	len = get_token(list, arg, sizeof(arg));
 	if (len <= 0) {
-		return hxptr_err(
-			HX_ERR_BAD_TOKEN, "list: failed to read first argument");
+		// return hxptr_err(
+		// 	HX_ERR_BAD_TOKEN, "list: failed to read first argument");
+		goto default_action;
 	}
 	list += len;
 
@@ -652,6 +654,14 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	// anything else after the base address is an error
 	return hxptr_err(
 		HX_ERR_BAD_TOKEN, "list: unexpected token '%s' after address", tok2);
+
+default_action:
+	req.start_addr = sh->cur_idx;
+	req.count = HXQL_LIST_DEFAULT;
+	req.is_range = 0;
+	memcpy(out_data, &req, sizeof(req));
+
+	return hxptr_ok();
 }
 
 hxsh_t *hxsh_init(hxptr_t *core)

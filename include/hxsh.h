@@ -7,6 +7,8 @@
 #define HXQL_CMD_LEN      0x100
 #define HXQL_LIST_DEFAULT 0x0f
 #define INFO_PROF_MASK    (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
+#define INFO_ALL_ARGS                                               \
+	(TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
 
 
 #include "hxptr.h"
