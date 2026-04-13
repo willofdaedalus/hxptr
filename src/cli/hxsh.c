@@ -134,7 +134,6 @@ static int get_token(char *input, char *out_tok, uint8_t toklen)
 
 static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 {
-	uint8_t i = 0;
 	profile_region_t region;
 	profile_memory_t mem;
 	hxsh_table_t t;
@@ -188,6 +187,14 @@ static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 	} else {
 		printf("you're not allowed here!\n");
 	}
+}
+
+static void which_render(hxql_result_t *result)
+{
+	which_result_t res = result->data.which;
+
+	printf("current memory: %s\n", res.memory);
+	printf("current region: %s\n", res.region);
 }
 
 static void list_render(hxql_result_t *result)
@@ -293,6 +300,10 @@ void render(hxql_result_t *result)
 
 		case HXQL_RES_LIST:
 			list_render(result);
+			break;
+
+		case HXQL_RES_WHICH:
+			which_render(result);
 			break;
 
 		default:
@@ -430,7 +441,7 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 	return hxptr_ok();
 }
 
-// helper -- resolves TOK_DOT or TOK_HEX to a uint32_t
+// resolves TOK_DOT or TOK_HEX to a uint32_t
 static int resolve_base(
 	hxsh_t *sh, HxshTokenType_t type, const char *raw, uint32_t *out)
 {
@@ -496,27 +507,31 @@ static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 			__FILE__, __LINE__);
 	}
 
-	while ((len = get_token(list, arg, sizeof(arg))) > 0) {
-		tok_type = classify_token(arg, sub_cmds, count);
+	if (!args || !*args) {
+		// no arguments: request everything
+		req.args = TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY;
+	} else {
+		while ((len = get_token(list, arg, sizeof(arg))) > 0) {
+			tok_type = classify_token(arg, sub_cmds, count);
 
-		switch (tok_type) {
-			// bug here from gdb, investigate
-			case TOK_WH_ADDR:
-				printf("0x%08x\n", sh->cur_idx);
-				break;
+			switch (tok_type) {
+				case TOK_WH_ADDR:
+				case TOK_WH_REGION:
+				case TOK_WH_MEMORY:
+					req.args |= tok_type;
+					break;
 
-			case TOK_WH_REGION:
-			case TOK_WH_MEMORY:
-				req.args |= tok_type;
-				break;
+				default:
+					return hxptr_err(HX_ERR_UNKN_ARG,
+						"unknown argument '%s' for which command", arg);
+			}
 
-			default:
-				return hxptr_err(HX_ERR_UNKN_ARG,
-					"unknown argument '%s' for which command", arg);
+			list += len;
 		}
-
-		list += len;
 	}
+
+	// store the current idx for the query engine
+	req.cur_idx = sh->cur_idx;
 	memcpy(out_data, &req, sizeof(req));
 
 	return hxptr_ok();

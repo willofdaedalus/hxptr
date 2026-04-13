@@ -35,9 +35,9 @@ typedef enum {
 	TOK_QUIT,
 
 	// "which" cmd types
-	TOK_WH_ADDR = (1 << 0),
-	TOK_WH_REGION = (1 << 1),
-	TOK_WH_MEMORY = (1 << 2),
+	TOK_WH_ADDR = (1 << 5),
+	TOK_WH_REGION = (1 << 6),
+	TOK_WH_MEMORY = (1 << 7),
 
 	// argument types
 	TOK_HEX,
@@ -68,6 +68,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t args;
+	uint32_t cur_idx;
 } which_req_t;
 
 typedef struct {

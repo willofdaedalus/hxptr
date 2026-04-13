@@ -89,6 +89,7 @@ static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char **line)
 	profile_memory_t mem = { 0 };
 	HxptrResult_t res;
 
+	printf("%s\n", type);
 	strncpy(mem.type, type, sizeof(mem.type) - 1);
 
 	res = parse_number(start_str, &mem.start);
@@ -135,6 +136,7 @@ static HxptrResult_t parse_region_entry(mcu_profile_t *pf, char **line)
 	profile_region_t reg = { 0 };
 	HxptrResult_t res;
 
+	printf("%s\n", name);
 	strncpy(reg.name, name, sizeof(reg.name) - 1);
 
 	res = parse_number(start_str, &reg.start);
@@ -241,33 +243,34 @@ mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 		res = fn(prof, &p);
 		if (res != HX_OK) {
 			switch (res) {
-			case HX_ERR_PARSE_DEETS:
-				*err = hxptr_err(res,
-					"line %d: could not parse "
-					"details for directive %s",
-					linenum, directive);
-				break;
-			case HX_ERR_PARSE_BAD_VALUE:
-				*err = hxptr_err(res,
-					"line %d: invalid value "
-					"passed for directive",
-					linenum);
-				break;
-			case HX_ERR_PARSE_MEMORY:
-				*err = hxptr_err(res,
-					"line %d: invalid values for "
-					"memory directive",
-					linenum);
-				break;
-			case HX_ERR_PARSE_REGION:
-				*err = hxptr_err(
-					res, "line %d: couldn't parse region values", linenum);
-				break;
-			case HX_ERR_PARSE:
-				*err = hxptr_err(res, "line %d: unable to parse line", linenum);
-				break;
-			default:
-				*err = hxptr_err(res, hxptr_strerror(res));
+				case HX_ERR_PARSE_DEETS:
+					*err = hxptr_err(res,
+						"line %d: could not parse "
+						"details for directive %s",
+						linenum, directive);
+					break;
+				case HX_ERR_PARSE_BAD_VALUE:
+					*err = hxptr_err(res,
+						"line %d: invalid value "
+						"passed for directive",
+						linenum);
+					break;
+				case HX_ERR_PARSE_MEMORY:
+					*err = hxptr_err(res,
+						"line %d: invalid values for "
+						"memory directive",
+						linenum);
+					break;
+				case HX_ERR_PARSE_REGION:
+					*err = hxptr_err(
+						res, "line %d: couldn't parse region values", linenum);
+					break;
+				case HX_ERR_PARSE:
+					*err = hxptr_err(
+						res, "line %d: unable to parse line", linenum);
+					break;
+				default:
+					*err = hxptr_err(res, hxptr_strerror(res));
 			}
 			*err = hxptr_err(
 				res, "line %d: unknown directive %s", linenum, directive);

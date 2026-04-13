@@ -26,8 +26,8 @@ typedef struct {
 
 typedef struct {
 	uint32_t cur_addr;
-	char region[MAX_OBJ_LEN];
-	char memory[MAX_OBJ_LEN];
+	char region[MAX_OBJ_LEN * 2];
+	char memory[MAX_OBJ_LEN * 2];
 	uint8_t args;
 } which_result_t;
 

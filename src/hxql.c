@@ -7,40 +7,45 @@ info_result_t info_res;
 which_result_t which_res;
 list_result_t list_res;
 
-static memory_entry_t *find_entry_by_addr(sparse_memory_t *mem, uint32_t addr)
+static memory_entry_t *find_entry_by_addr(
+	sparse_memory_t *memory, uint32_t addr)
 {
-	if (!mem || mem->count == 0) {
+	if (!memory || memory->count == 0) {
 		return NULL;
 	}
 
 	uint32_t lo = 0;
-	uint32_t hi = mem->count; // one past end
+	uint32_t hi = memory->count; // one past end
 
 	while (lo < hi) {
 		uint32_t mid = lo + (hi - lo) / 2;
-		if (mem->entries[mid].address < addr) {
+		if (memory->entries[mid].address < addr) {
 			lo = mid + 1;
 		} else {
 			hi = mid;
 		}
 	}
 
-	if (lo >= mem->count) {
+	if (lo >= memory->count) {
 		return NULL;
 	}
 
-	return &mem->entries[lo];
+	return &memory->entries[lo];
 }
 
 
 hxptr_error_t hxql_execute_cmd(
 	hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result)
 {
-	// sparse_memory_t *mem;
+	// sparse_memory_t *memory;
 	info_req_t info_req;
 	which_req_t which_req;
 	list_req_t list_req;
 	memory_entry_t *start;
+	mcu_profile_t *profile;
+	profile_region_t region;
+	profile_memory_t memory;
+	uint8_t i;
 
 	switch (req->type) {
 		case TOK_INFO:
@@ -91,17 +96,46 @@ hxptr_error_t hxql_execute_cmd(
 			break;
 
 		case TOK_WHICH:
+			i = 0;
+			profile = hx->profile;
 			which_req = req->req_type.which_req;
 			result->type = HXQL_RES_WHICH;
 
 			if (which_req.args & TOK_WH_REGION) {
+				while (i < profile->region_count) {
+					region = profile->regions[i];
+
+					if (which_req.cur_idx >= region.start &&
+						which_req.cur_idx <= region.end) {
+						strncpy(which_res.region, region.name,
+							(MAX_OBJ_LEN * 2) - 1);
+						break;
+					}
+					i++;
+				}
+				strncpy(
+					which_res.region, "no region found", (MAX_OBJ_LEN * 2) - 1);
 			}
 
 			if (which_req.args & TOK_WH_MEMORY) {
+				while (i < profile->mem_count) {
+					memory = profile->mem_blocks[i];
+
+					if (which_req.cur_idx >= memory.start &&
+						(which_req.cur_idx <= memory.start + memory.size)) {
+						strncpy(which_res.memory, memory.type,
+							(MAX_OBJ_LEN * 2) - 1);
+						break;
+					}
+					i++;
+				}
+				strncpy(
+					which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
 			}
 
 			result->code = HX_OK;
 			memcpy(&result->data.which, &which_res, sizeof(which_res));
+
 			break;
 
 		default:
