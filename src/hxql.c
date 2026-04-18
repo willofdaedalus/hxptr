@@ -3,10 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-info_result_t info_res;
-which_result_t which_res;
-list_result_t list_res;
-
 static memory_entry_t *find_entry_by_addr(
 	sparse_memory_t *memory, uint32_t addr)
 {
@@ -37,6 +33,10 @@ static memory_entry_t *find_entry_by_addr(
 hxptr_error_t hxql_execute_cmd(
 	hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result)
 {
+	info_result_t info_res = { 0 };
+	which_result_t which_res = { 0 };
+	list_result_t list_res = { 0 };
+
 	// sparse_memory_t *memory;
 	info_req_t info_req;
 	which_req_t which_req;
