@@ -99,9 +99,13 @@ hxptr_error_t hxql_execute_cmd(
 			i = 0;
 			profile = hx->profile;
 			which_req = req->req_type.which_req;
+			which_res.cur_addr = which_req.cur_idx;
 			result->type = HXQL_RES_WHICH;
 
 			if (which_req.args & TOK_WH_REGION) {
+				strncpy(
+					which_res.region, "no region found", (MAX_OBJ_LEN * 2) - 1);
+
 				while (i < profile->region_count) {
 					region = profile->regions[i];
 
@@ -113,11 +117,12 @@ hxptr_error_t hxql_execute_cmd(
 					}
 					i++;
 				}
-				strncpy(
-					which_res.region, "no region found", (MAX_OBJ_LEN * 2) - 1);
 			}
 
 			if (which_req.args & TOK_WH_MEMORY) {
+				strncpy(
+					which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
+
 				while (i < profile->mem_count) {
 					memory = profile->mem_blocks[i];
 
@@ -129,10 +134,9 @@ hxptr_error_t hxql_execute_cmd(
 					}
 					i++;
 				}
-				strncpy(
-					which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
 			}
 
+			which_res.args = which_req.args;
 			result->code = HX_OK;
 			memcpy(&result->data.which, &which_res, sizeof(which_res));
 

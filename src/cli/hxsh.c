@@ -189,12 +189,21 @@ static void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 	}
 }
 
-static void which_render(hxql_result_t *result)
+static void which_render(hxql_result_t *result, uint8_t type)
 {
 	which_result_t res = result->data.which;
 
-	printf("current memory: %s\n", res.memory);
-	printf("current region: %s\n", res.region);
+	if (type & TOK_WH_REGION) {
+		printf("current region: %s\n", res.region);
+	}
+
+	if (type & TOK_WH_ADDR) {
+		printf("current address: 0x%08x\n", res.cur_addr);
+	}
+
+	if (type & TOK_WH_MEMORY) {
+		printf("current memory: %s\n", res.memory);
+	}
 }
 
 static void list_render(hxql_result_t *result)
@@ -303,7 +312,7 @@ void render(hxql_result_t *result)
 			break;
 
 		case HXQL_RES_WHICH:
-			which_render(result);
+			which_render(result, result->data.which.args);
 			break;
 
 		default:
@@ -335,7 +344,8 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 
 	char *p = sh->cmd;
 
-	// get the initial token which is always considered the command/operation
+	// get the initial token which is always considered the
+	// command/operation
 	len = get_token(p, cmd, sizeof(cmd));
 	p += len;
 
@@ -364,10 +374,6 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 			break;
 		case TOK_WHICH:
 			err = which_handler(sh, p, &req.req_type.which_req);
-			if (req.req_type.which_req.args == TOK_WH_ADDR) {
-				printf("0x%08x\n", sh->cur_idx);
-				return hxptr_ok();
-			}
 			break;
 	}
 	if (err.code != HX_OK) {
@@ -509,7 +515,7 @@ static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	if (!args || !*args) {
 		// no arguments: request everything
-		req.args = TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY;
+		req.args = WHICH_MASK;
 	} else {
 		while ((len = get_token(list, arg, sizeof(arg))) > 0) {
 			tok_type = classify_token(arg, sub_cmds, count);
