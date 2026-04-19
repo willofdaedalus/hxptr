@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data);
 static hxptr_error_t info_handler(const char *args, void *out_data);
 static hxptr_error_t list_handler(hxsh_t *hx, const char *args, void *out_data);
 static hxptr_error_t which_handler(
@@ -13,21 +14,15 @@ static hxptr_error_t which_handler(
 
 // out_tok map
 static const token_map_t token_map[] = {
-	{ "info",    TOK_INFO    },
-	{ "search",  TOK_SEARCH  },
-	{ "goto",    TOK_GOTO    },
-	{ "which",   TOK_WHICH   },
-	{ "list",    TOK_LIST    },
-	{ "help",    TOK_HELP    },
-	{ "quit",    TOK_QUIT    },
-	// args
-	{ "regions", TOK_REGIONS },
-	{ "memory",  TOK_MEMORY  },
-	{ "stats",   TOK_STATS   },
-	{ "diag",    TOK_DIAG    },
-	{ "profile", TOK_PROFILE },
+	{ "info",   TOK_INFO   },
+	{ "search", TOK_SEARCH },
+	{ "goto",   TOK_GOTO   },
+	{ "which",  TOK_WHICH  },
+	{ "list",   TOK_LIST   },
+	{ "help",   TOK_HELP   },
+	{ "quit",   TOK_QUIT   },
 };
-static const size_t token_map_count = sizeof(token_map) / sizeof(token_map[0]);
+static const size_t map_count = sizeof(token_map) / sizeof(token_map[0]);
 
 static HxshTokenType_t classify_token(
 	const char *tok, token_map_t *inputs, int inputs_len)
@@ -288,7 +283,7 @@ void render(hxql_result_t *result)
 				if (!res.profile) {
 					fprintf(stderr,
 						"no mcu profile loaded for arguments 'memory', "
-						"'regions' and 'profile'\n");
+						"'regions' and 'profile'");
 				} else {
 					if (res.args & TOK_MEMORY) {
 						profile_render(res.profile, TOK_MEMORY);
@@ -331,6 +326,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	hxptr_error_t err = { 0 };
 	hxql_result_t result = { 0 };
 
+	// TODO; remember to flush the stdin after every command runs
 	printf(PROMPT);
 	if (fgets(sh->cmd, sizeof(sh->cmd), stdin) == NULL) {
 		sh->running = 0;
@@ -349,7 +345,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	len = get_token(p, cmd, sizeof(cmd));
 	p += len;
 
-	for (size_t i = 0; i < token_map_count; i++) {
+	for (size_t i = 0; i < map_count; i++) {
 		if (strcmp(cmd, token_map[i].name) == 0) {
 			op = token_map[i].type;
 		}
@@ -466,7 +462,7 @@ static int resolve_base(
 	return -1;
 }
 
-// helper -- resolves TOK_DEC or TOK_HEX to a uint32_t count/offset
+// helper resolves TOK_DEC or TOK_HEX to a uint32_t count/offset
 static int resolve_num(HxshTokenType_t type, const char *raw, uint32_t *out)
 {
 	if (type == TOK_DEC) {
@@ -620,7 +616,7 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 		return hxptr_ok();
 	}
 
-	// case: list . or list addr -- resolve base first
+	// case: list . or list addr resolve base first
 	if (tok_type != TOK_DOT && tok_type != TOK_HEX) {
 		return hxptr_err(HX_ERR_BAD_TOKEN,
 			"list: unexpected token '%s', expected address or '.'", arg);
@@ -636,7 +632,7 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	char tok2[64];
 	len = get_token(list, tok2, sizeof(tok2));
 
-	// case: list . or list addr -- nothing follows
+	// case: list . or list addr nothing follows
 	if (len <= 0) {
 		req.start_addr = base;
 		req.count = HXQL_LIST_DEFAULT;
@@ -660,7 +656,7 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 
 		HxshTokenType_t tok3_type = classify_token(tok3, sub_cmds, count);
 
-		// list . : . is invalid -- no meaningful end point
+		// list . : . is invalid no meaningful end point
 		if (tok3_type == TOK_DOT && base == sh->cur_idx) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
 				"list: '. : .' is ambiguous, use an explicit end address");

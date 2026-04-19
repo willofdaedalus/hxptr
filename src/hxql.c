@@ -143,7 +143,6 @@ hxptr_error_t hxql_execute_cmd(
 			break;
 
 		default:
-			fprintf(stderr, "not implemented\n");
 			break;
 	}
 
