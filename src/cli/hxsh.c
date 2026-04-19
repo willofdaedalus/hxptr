@@ -484,7 +484,7 @@ static int resolve_num(HxshTokenType_t type, const char *raw, uint32_t *out)
 	return -1;
 }
 
-static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
+static hxptr_error_t which_handler(hxsh_t *hx, const char *args, void *out_data)
 {
 	// which address
 	// which region
@@ -504,7 +504,7 @@ static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 	};
 	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
 
-	if (!sh) {
+	if (!hx) {
 		return hxptr_err(HX_ERR_NULL, "%s:%d: which_handler(): sh is NULL",
 			__FILE__, __LINE__);
 	}
@@ -519,6 +519,13 @@ static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 			switch (tok_type) {
 				case TOK_WH_ADDR:
 				case TOK_WH_REGION:
+					if (!hx->hx->profile) {
+						return hxptr_err(HX_ERR_BAD_PROFILE,
+							"unable to load region information; no profile "
+							"loaded. restart hxptr and load a profile with -p "
+							"flag");
+					}
+					__attribute__((fallthrough));
 				case TOK_WH_MEMORY:
 					req.args |= tok_type;
 					break;
@@ -533,7 +540,7 @@ static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	// store the current idx for the query engine
-	req.cur_idx = sh->cur_idx;
+	req.cur_idx = hx->cur_idx;
 	memcpy(out_data, &req, sizeof(req));
 
 	return hxptr_ok();

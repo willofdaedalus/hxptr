@@ -63,6 +63,13 @@ typedef struct {
 } list_req_t;
 
 typedef struct {
+	// weird trick to align everything :P
+	char sector_name[(MAX_OBJ_LEN * 2) - 1];
+	uint8_t goto_mem;
+	uint32_t new_addr;
+} goto_req_t;
+
+typedef struct {
 	uint32_t args;
 } info_req_t;
 
@@ -77,6 +84,7 @@ typedef struct {
 		which_req_t which_req;
 		info_req_t info_req;
 		list_req_t list_req;
+		goto_req_t goto_req;
 	} req_type;
 
 } hxsh_req_t;
