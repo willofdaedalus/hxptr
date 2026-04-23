@@ -504,29 +504,37 @@ static hxptr_error_t which_handler(hxsh_t *hx, const char *args, void *out_data)
 	};
 	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
 
-	if (!hx) {
+	if (!sh) {
 		return hxptr_err(HX_ERR_NULL, "%s:%d: which_handler(): sh is NULL",
 			__FILE__, __LINE__);
 	}
 
 	if (!args || !*args) {
-		// no arguments: request everything
-		req.args = WHICH_MASK;
+		if (!sh->hx->profile) {
+			fprintf(stderr,
+				"unable to load region/memory information; no profile "
+				"loaded. restart hxptr and load a profile with -p "
+				"flag\n");
+			req.args = TOK_WH_ADDR;
+		} else {
+			// no arguments: request everything
+			req.args = WHICH_MASK;
+		}
 	} else {
 		while ((len = get_token(list, arg, sizeof(arg))) > 0) {
 			tok_type = classify_token(arg, sub_cmds, count);
 
 			switch (tok_type) {
-				case TOK_WH_ADDR:
+				case TOK_WH_MEMORY:
 				case TOK_WH_REGION:
-					if (!hx->hx->profile) {
+					if (!sh->hx->profile) {
 						return hxptr_err(HX_ERR_BAD_PROFILE,
-							"unable to load region information; no profile "
-							"loaded. restart hxptr and load a profile with -p "
-							"flag");
+							"unable to load region/memory information; no "
+							"profile loaded. restart hxptr and load a profile "
+							"with -p flag");
 					}
 					__attribute__((fallthrough));
-				case TOK_WH_MEMORY:
+				case TOK_WH_ADDR:
 					req.args |= tok_type;
 					break;
 
@@ -540,7 +548,7 @@ static hxptr_error_t which_handler(hxsh_t *hx, const char *args, void *out_data)
 	}
 
 	// store the current idx for the query engine
-	req.cur_idx = hx->cur_idx;
+	req.cur_idx = sh->cur_idx;
 	memcpy(out_data, &req, sizeof(req));
 
 	return hxptr_ok();
