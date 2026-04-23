@@ -98,6 +98,48 @@ static HxshTokenType_t classify_token(
 	return TOK_UNKNOWN;
 }
 
+// resolves TOK_DOT or TOK_HEX to a uint32_t
+static int resolve_base(
+	hxsh_t *sh, HxshTokenType_t type, const char *raw, uint32_t *out)
+{
+	if (type == TOK_DOT) {
+		*out = sh->cur_idx;
+		return 0;
+	}
+	if (type == TOK_HEX) {
+		char *end;
+		*out = (uint32_t) strtoul(raw, &end, 16);
+		if (end == raw || *end != '\0') {
+			return -1;
+		}
+		return 0;
+	}
+	return -1;
+}
+
+// helper resolves TOK_DEC or TOK_HEX to a uint32_t count/offset
+static int resolve_num(HxshTokenType_t type, const char *raw, uint32_t *out)
+{
+	if (type == TOK_DEC) {
+		char *end;
+		*out = (uint32_t) strtoul(raw, &end, 10);
+		if (end == raw || *end != '\0') {
+			return -1;
+		}
+		return 0;
+	}
+	if (type == TOK_HEX) {
+		char *end;
+		*out = (uint32_t) strtoul(raw, &end, 16);
+		if (end == raw || *end != '\0') {
+			return -1;
+		}
+		return 0;
+	}
+	return -1;
+}
+
+
 static int get_token(char *input, char *out_tok, uint8_t toklen)
 {
 	uint8_t i = 0, j = 0;
@@ -268,7 +310,18 @@ static void stats_render(hxql_result_t *result)
 	printf("  %-20s 0x%08x\n", "highest address", s->addr_highest);
 }
 
-void render(hxql_result_t *result)
+static void goto_render(hxql_result_t *result, hxsh_t *sh)
+{
+	goto_result_t res = result->data.go;
+	if (res.found) {
+		sh->cur_idx = res.addr;
+		printf("updated current address to %#08x", res.addr);
+		return;
+	}
+	printf("not found\n");
+}
+
+void render(hxql_result_t *result, hxsh_t *sh)
 {
 	info_result_t res;
 	if (!result) {
@@ -308,6 +361,10 @@ void render(hxql_result_t *result)
 
 		case HXQL_RES_WHICH:
 			which_render(result, result->data.which.args);
+			break;
+
+		case HXQL_RES_GOTO:
+			goto_render(result, sh);
 			break;
 
 		default:
@@ -371,6 +428,9 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 		case TOK_WHICH:
 			err = which_handler(sh, p, &req.req_type.which_req);
 			break;
+		case TOK_GOTO:
+			err = goto_handler(sh, p, &req.req_type.goto_req);
+			break;
 	}
 	if (err.code != HX_OK) {
 		return err;
@@ -381,9 +441,177 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 		return err;
 	}
 
-	render(&result);
+	render(&result, sh);
 
 	return hxptr_ok();
+}
+
+static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
+{
+	goto_req_t req = { 0 };
+	char arg[64];
+	char *list = (char *) args;
+	int len;
+	HxshTokenType_t tok_type;
+
+	token_map_t sub_cmds[] = {
+		{ ".",      TOK_DOT     },
+		{ "+",      TOK_PLUS    },
+		{ "-",      TOK_MINUS   },
+		{ ":",      TOK_COLON   },
+		{ "region", TOK_REGIONS },
+		{ "memory", TOK_MEMORY  },
+	};
+	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
+
+	if (!sh) {
+		return hxptr_err(HX_ERR_NULL, "%s:%d: goto_handler(): sh is NULL",
+			__FILE__, __LINE__);
+	}
+
+	if (!out_data) {
+		return hxptr_err(HX_ERR_INVALID_ARG,
+			"%s:%d: goto_handler(): out_data is NULL", __FILE__, __LINE__);
+	}
+
+	// goto with no args is invalid needs a destination
+	if (!args || !*args) {
+		return hxptr_err(HX_ERR_BAD_TOKEN,
+			"goto: expected an address, region, or memory name");
+	}
+
+	// token 1
+	len = get_token(list, arg, sizeof(arg));
+	if (len <= 0) {
+		return hxptr_err(HX_ERR_BAD_TOKEN, "goto: failed to read argument");
+	}
+	list += len;
+
+	tok_type = classify_token(arg, sub_cmds, count);
+
+	// case: goto region <name> or goto memory <name>
+	if (tok_type == TOK_REGIONS || tok_type == TOK_MEMORY) {
+		if (!sh->hx->profile) {
+			return hxptr_err(HX_ERR_BAD_PROFILE,
+				"no profile loaded; unable to access memory/region "
+				"information. restart hxptr with -p flag");
+		}
+
+		char name[64];
+		len = get_token(list, name, sizeof(name));
+		if (len <= 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"goto: expected a region/memory name after '%s'", arg);
+		}
+		list += len;
+
+		// no trailing tokens allowed
+		char extra[64];
+		if (get_token(list, extra, sizeof(extra)) > 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "goto: unexpected token '%s'", extra);
+		}
+
+		req.is_named = 1;
+		req.named_type = tok_type;
+		strncpy(req.name, name, sizeof(req.name) - 1);
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
+	}
+
+	// case: goto 0x08000000; plain absolute address
+	if (tok_type == TOK_HEX) {
+		uint32_t addr;
+		if (resolve_base(sh, tok_type, arg, &addr) != 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "goto: could not resolve address '%s'", arg);
+		}
+
+		// no trailing tokens allowed; should catch goto addr : addr
+		char extra[64];
+		if (get_token(list, extra, sizeof(extra)) > 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"goto: unexpected token '%s' ranges are not valid for goto",
+				extra);
+		}
+
+		req.addr = addr;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
+	}
+
+	// case: goto . or goto . +/- <num>
+	if (tok_type == TOK_DOT) {
+		uint32_t base = sh->cur_idx;
+
+		// peek at token 2
+		char tok2[64];
+		len = get_token(list, tok2, sizeof(tok2));
+
+		// bare goto . just go to current position
+		// not super useful but not invalid either
+		if (len <= 0) {
+			req.addr = base;
+			memcpy(out_data, &req, sizeof(req));
+			return hxptr_ok();
+		}
+		list += len;
+
+		HxshTokenType_t tok2_type = classify_token(tok2, sub_cmds, count);
+
+		// must be + or -
+		if (tok2_type != TOK_PLUS && tok2_type != TOK_MINUS) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"goto: unexpected token '%s' after '.', expected '+' or "
+				"'-'",
+				tok2);
+		}
+
+		int8_t sign = (tok2_type == TOK_PLUS) ? +1 : -1;
+
+		// token 3: the offset
+		char tok3[64];
+		len = get_token(list, tok3, sizeof(tok3));
+		if (len <= 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "goto: expected a number after '%s'", tok2);
+		}
+		list += len;
+
+		HxshTokenType_t tok3_type = classify_token(tok3, NULL, 0);
+		uint32_t offset;
+		if (resolve_num(tok3_type, tok3, &offset) != 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "goto: '%s' is not a valid number", tok3);
+		}
+
+		// underflow guard
+		if (sign == -1 && offset > base) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"goto: offset %u would underflow address 0x%08x", offset, base);
+		}
+
+		// no trailing tokens
+		char extra[64];
+		if (get_token(list, extra, sizeof(extra)) > 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "goto: unexpected token '%s'", extra);
+		}
+
+		req.addr = (sign == +1) ? base + offset : base - offset;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
+	}
+
+	// catch all colon and anything else
+	if (tok_type == TOK_COLON) {
+		return hxptr_err(HX_ERR_BAD_TOKEN,
+			"goto: ranges are not valid, use an explicit address");
+	}
+
+	return hxptr_err(HX_ERR_BAD_TOKEN,
+		"goto: unexpected token '%s', expected address, region, or memory",
+		arg);
 }
 
 // handles the info command
@@ -443,48 +671,7 @@ static hxptr_error_t info_handler(const char *args, void *out_data)
 	return hxptr_ok();
 }
 
-// resolves TOK_DOT or TOK_HEX to a uint32_t
-static int resolve_base(
-	hxsh_t *sh, HxshTokenType_t type, const char *raw, uint32_t *out)
-{
-	if (type == TOK_DOT) {
-		*out = sh->cur_idx;
-		return 0;
-	}
-	if (type == TOK_HEX) {
-		char *end;
-		*out = (uint32_t) strtoul(raw, &end, 16);
-		if (end == raw || *end != '\0') {
-			return -1;
-		}
-		return 0;
-	}
-	return -1;
-}
-
-// helper resolves TOK_DEC or TOK_HEX to a uint32_t count/offset
-static int resolve_num(HxshTokenType_t type, const char *raw, uint32_t *out)
-{
-	if (type == TOK_DEC) {
-		char *end;
-		*out = (uint32_t) strtoul(raw, &end, 10);
-		if (end == raw || *end != '\0') {
-			return -1;
-		}
-		return 0;
-	}
-	if (type == TOK_HEX) {
-		char *end;
-		*out = (uint32_t) strtoul(raw, &end, 16);
-		if (end == raw || *end != '\0') {
-			return -1;
-		}
-		return 0;
-	}
-	return -1;
-}
-
-static hxptr_error_t which_handler(hxsh_t *hx, const char *args, void *out_data)
+static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 {
 	// which address
 	// which region
@@ -511,11 +698,10 @@ static hxptr_error_t which_handler(hxsh_t *hx, const char *args, void *out_data)
 
 	if (!args || !*args) {
 		if (!sh->hx->profile) {
-			fprintf(stderr,
+			return hxptr_err(HX_ERR_BAD_PROFILE,
 				"unable to load region/memory information; no profile "
-				"loaded. restart hxptr and load a profile with -p "
-				"flag\n");
-			req.args = TOK_WH_ADDR;
+				"loaded. "
+				"restart hxptr and load a profile with -p flag");
 		} else {
 			// no arguments: request everything
 			req.args = WHICH_MASK;
@@ -530,7 +716,8 @@ static hxptr_error_t which_handler(hxsh_t *hx, const char *args, void *out_data)
 					if (!sh->hx->profile) {
 						return hxptr_err(HX_ERR_BAD_PROFILE,
 							"unable to load region/memory information; no "
-							"profile loaded. restart hxptr and load a profile "
+							"profile loaded. restart hxptr and load a "
+							"profile "
 							"with -p flag");
 					}
 					__attribute__((fallthrough));

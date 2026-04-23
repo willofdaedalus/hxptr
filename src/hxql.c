@@ -33,23 +33,16 @@ static memory_entry_t *find_entry_by_addr(
 hxptr_error_t hxql_execute_cmd(
 	hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result)
 {
-	info_result_t info_res = { 0 };
-	which_result_t which_res = { 0 };
-	list_result_t list_res = { 0 };
-
-	// sparse_memory_t *memory;
-	info_req_t info_req;
-	which_req_t which_req;
-	list_req_t list_req;
 	memory_entry_t *start;
 	mcu_profile_t *profile;
-	profile_region_t region;
-	profile_memory_t memory;
+	profile_region_t *region;
+	profile_memory_t *memory;
 	uint8_t i;
 
 	switch (req->type) {
 		case TOK_INFO:
-			info_req = req->req_type.info_req;
+			info_req_t info_req = req->req_type.info_req;
+			info_result_t info_res = { 0 };
 			result->type = HXQL_RES_INFO;
 
 			if (info_req.args & TOK_STATS) {
@@ -78,7 +71,8 @@ hxptr_error_t hxql_execute_cmd(
 			break;
 
 		case TOK_LIST:
-			list_req = req->req_type.list_req;
+			list_req_t list_req = req->req_type.list_req;
+			list_result_t list_res = { 0 };
 			result->type = HXQL_RES_LIST;
 
 			// subtract start_addr from addr_lowest
@@ -96,9 +90,10 @@ hxptr_error_t hxql_execute_cmd(
 			break;
 
 		case TOK_WHICH:
+			which_req_t which_req = req->req_type.which_req;
+			which_result_t which_res = { 0 };
 			i = 0;
 			profile = hx->profile;
-			which_req = req->req_type.which_req;
 			which_res.cur_addr = which_req.cur_idx;
 			result->type = HXQL_RES_WHICH;
 
@@ -107,11 +102,11 @@ hxptr_error_t hxql_execute_cmd(
 					which_res.region, "no region found", (MAX_OBJ_LEN * 2) - 1);
 
 				while (i < profile->region_count) {
-					region = profile->regions[i];
+					region = &profile->regions[i];
 
-					if (which_req.cur_idx >= region.start &&
-						which_req.cur_idx <= region.end) {
-						strncpy(which_res.region, region.name,
+					if (which_req.cur_idx >= region->start &&
+						which_req.cur_idx <= region->end) {
+						strncpy(which_res.region, region->name,
 							(MAX_OBJ_LEN * 2) - 1);
 						break;
 					}
@@ -125,11 +120,11 @@ hxptr_error_t hxql_execute_cmd(
 					which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
 
 				while (i < profile->mem_count) {
-					memory = profile->mem_blocks[i];
+					memory = &profile->mem_blocks[i];
 
-					if (which_req.cur_idx >= memory.start &&
-						(which_req.cur_idx <= memory.start + memory.size)) {
-						strncpy(which_res.memory, memory.type,
+					if (which_req.cur_idx >= memory->start &&
+						(which_req.cur_idx <= memory->start + memory->size)) {
+						strncpy(which_res.memory, memory->type,
 							(MAX_OBJ_LEN * 2) - 1);
 						break;
 					}
@@ -140,7 +135,42 @@ hxptr_error_t hxql_execute_cmd(
 			which_res.args = which_req.args;
 			result->code = HX_OK;
 			memcpy(&result->data.which, &which_res, sizeof(which_res));
+			break;
 
+		case TOK_GOTO:
+			goto_req_t *goto_req = &req->req_type.goto_req;
+			goto_result_t goto_res = { 0 };
+			result->type = HXQL_RES_GOTO;
+			profile = hx->profile;
+
+			if (goto_req->is_named) {
+				i = 0;
+				if (goto_req->named_type == TOK_REGIONS) {
+					while (i < profile->region_count) {
+						region = &profile->regions[i];
+						if (strcmp(goto_req->name, region->name) == 0) {
+							goto_res.addr = region->start;
+							goto_res.found = 1;
+							break;
+						}
+						i++;
+					}
+				} else if (goto_req->named_type == TOK_MEMORY) {
+					i = 0;
+					while (i < profile->mem_count) {
+						memory = &profile->mem_blocks[i];
+						if (strcmp(goto_req->name, memory->type) == 0) {
+							goto_res.addr = memory->start;
+							goto_res.found = 1;
+							break;
+						}
+						i++;
+					}
+				}
+			}
+
+			result->code = HX_OK;
+			memcpy(&result->data.go, &goto_res, sizeof(goto_res));
 			break;
 
 		default:

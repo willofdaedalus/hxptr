@@ -63,10 +63,10 @@ typedef struct {
 } list_req_t;
 
 typedef struct {
-	// weird trick to align everything :P
-	char sector_name[(MAX_OBJ_LEN * 2) - 1];
-	uint8_t goto_mem;
-	uint32_t new_addr;
+	uint32_t addr;
+	uint8_t is_named; // was it goto region/memory <name>
+	HxshTokenType_t named_type; // TOK_REGIONS or TOK_MEMORY if is_named
+	char name[32]; // region or memory name if is_named
 } goto_req_t;
 
 typedef struct {

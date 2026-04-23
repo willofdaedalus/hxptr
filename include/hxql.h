@@ -14,6 +14,7 @@ typedef enum {
 	HXQL_RES_LIST = 1,
 	HXQL_RES_INFO,
 	HXQL_RES_WHICH,
+	HXQL_RES_GOTO,
 } HxqlResultType_t;
 
 typedef struct {
@@ -23,6 +24,10 @@ typedef struct {
 	uint8_t args;
 } info_result_t;
 
+typedef struct {
+	uint8_t found;
+	uint32_t addr;
+} goto_result_t;
 
 typedef struct {
 	uint32_t cur_addr;
@@ -50,6 +55,7 @@ typedef struct {
 		info_result_t info;
 		which_result_t which;
 		status_result_t status;
+		goto_result_t go;
 	} data;
 } hxql_result_t;
 
