@@ -119,6 +119,7 @@ hxptr_error_t hxql_execute_cmd(
 				}
 			}
 
+			i = 0;
 			if (which_req.args & TOK_WH_MEMORY) {
 				strncpy(
 					which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
