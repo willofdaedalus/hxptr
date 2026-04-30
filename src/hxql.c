@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static memory_entry_t *find_entry_by_addr(
-	sparse_memory_t *memory, uint32_t addr)
+static memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr)
 {
 	if (!memory || memory->count == 0) {
 		return NULL;
@@ -30,8 +29,7 @@ static memory_entry_t *find_entry_by_addr(
 }
 
 
-hxptr_error_t hxql_execute_cmd(
-	hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result)
+hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result)
 {
 	memory_entry_t *start;
 	mcu_profile_t *profile;
@@ -98,16 +96,15 @@ hxptr_error_t hxql_execute_cmd(
 			result->type = HXQL_RES_WHICH;
 
 			if (which_req.args & TOK_WH_REGION) {
-				strncpy(
-					which_res.region, "no region found", (MAX_OBJ_LEN * 2) - 1);
+				strncpy(which_res.region, "no region found", (MAX_OBJ_LEN * 2) - 1);
 
 				while (i < profile->region_count) {
 					region = &profile->regions[i];
 
 					if (which_req.cur_idx >= region->start &&
 						which_req.cur_idx <= region->end) {
-						strncpy(which_res.region, region->name,
-							(MAX_OBJ_LEN * 2) - 1);
+						strncpy(
+							which_res.region, region->name, (MAX_OBJ_LEN * 2) - 1);
 						break;
 					}
 					i++;
@@ -116,16 +113,15 @@ hxptr_error_t hxql_execute_cmd(
 
 			i = 0;
 			if (which_req.args & TOK_WH_MEMORY) {
-				strncpy(
-					which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
+				strncpy(which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
 
 				while (i < profile->mem_count) {
 					memory = &profile->mem_blocks[i];
 
 					if (which_req.cur_idx >= memory->start &&
 						(which_req.cur_idx <= memory->start + memory->size)) {
-						strncpy(which_res.memory, memory->type,
-							(MAX_OBJ_LEN * 2) - 1);
+						strncpy(
+							which_res.memory, memory->type, (MAX_OBJ_LEN * 2) - 1);
 						break;
 					}
 					i++;

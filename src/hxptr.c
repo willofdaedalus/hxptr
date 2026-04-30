@@ -34,97 +34,101 @@ static HxptrResult_t hxptr_append_record(
 	}
 
 	switch (record->type) {
-	case IHEX_DATA:
-		if (state->cur_type == IHEX_ESA) {
-			addr = ((uint32_t) state->segment << 4) + record->address;
-		} else if (state->cur_type == IHEX_ELA) {
-			addr = ((uint32_t) state->linear << 16) | record->address;
-		} else {
-			addr = record->address;
-		}
+		case IHEX_DATA:
+			if (state->cur_type == IHEX_ESA) {
+				addr = ((uint32_t) state->segment << 4) + record->address;
+			} else if (state->cur_type == IHEX_ELA) {
+				addr = ((uint32_t) state->linear << 16) | record->address;
+			} else {
+				addr = record->address;
+			}
 
-		res = sm_append_record(ctx->memory, record, addr);
-		if (res != HX_OK) {
-			return res;
-		}
+			res = sm_append_record(ctx->memory, record, addr);
+			if (res != HX_OK) {
+				return res;
+			}
 
-		// track highest and lowest addr
-		if (addr < ctx->stats->addr_lowest) {
-			ctx->stats->addr_lowest = addr;
-		}
+			// track highest and lowest addr
+			if (addr < ctx->stats->addr_lowest) {
+				ctx->stats->addr_lowest = addr;
+			}
 
-		if (addr > ctx->stats->addr_highest) {
-			ctx->stats->addr_highest = addr;
-		}
+			if (addr > ctx->stats->addr_highest) {
+				ctx->stats->addr_highest = addr;
+			}
 
+			if (record->byte_count > ctx->stats->longest_record) {
+				ctx->stats->longest_record = record->byte_count;
+			}
 
-		ctx->stats->total_bytes += record->byte_count;
-		ctx->stats->total_records += 1;
-		break;
+			ctx->stats->total_bytes += record->byte_count;
+			ctx->stats->total_records += 1;
+			break;
 
-	case IHEX_EOF:
-		// we already hit eof! no more!
-		if (state->eof) {
-			return HX_ERR_BAD_FILE;
-		}
+		case IHEX_EOF:
+			// we already hit eof! no more!
+			if (state->eof) {
+				return HX_ERR_BAD_FILE;
+			}
 
-		// eof MUST fit the spec
-		if (record->byte_count != 0 || record->address != 0x0000) {
+			// eof MUST fit the spec
+			if (record->byte_count != 0 || record->address != 0x0000) {
+				return HX_ERR_INV_RECORD;
+			}
+
+			state->eof = 1;
+			break;
+
+		case IHEX_ESA:
+			if (record->byte_count != ADDR_COUNT) {
+				return HX_ERR_INV_RECORD;
+			}
+			state->segment =
+				(uint16_t) ((record->data[0] << 8) | record->data[1]);
+			// state->segment = ((uint16_t) record->bytes[0] << 8) |
+			// 	       (uint16_t) record->bytes[1];
+
+			state->linear = 0;
+			state->cur_type = IHEX_ESA;
+			break;
+
+		case IHEX_ELA:
+			if (record->byte_count != ADDR_COUNT) {
+				return HX_ERR_INV_RECORD;
+			}
+
+			state->linear =
+				((uint16_t) record->data[0] << 8) | (uint16_t) record->data[1];
+
+			state->segment = 0;
+			state->cur_type = IHEX_ELA;
+			break;
+
+		case IHEX_SSA:
+			if (record->byte_count != START_COUNT || record->address != 0) {
+				return HX_ERR_INV_RECORD;
+			}
+			state->code_segment =
+				(uint16_t) ((record->data[0] << 8) | record->data[1]);
+			state->instr_pointer =
+				(uint16_t) ((record->data[2] << 8) | record->data[3]);
+			state->cur_type = IHEX_SSA;
+			break;
+
+		case IHEX_SLA:
+			if (record->byte_count != START_COUNT || record->address != 0) {
+				return HX_ERR_INV_RECORD;
+			}
+
+			state->code_segment =
+				(uint16_t) ((record->data[0] << 8) | record->data[1]);
+			state->instr_pointer =
+				(uint16_t) ((record->data[2] << 8) | record->data[3]);
+			state->cur_type = IHEX_SLA;
+			break;
+
+		default:
 			return HX_ERR_INV_RECORD;
-		}
-
-		state->eof = 1;
-		break;
-
-	case IHEX_ESA:
-		if (record->byte_count != ADDR_COUNT) {
-			return HX_ERR_INV_RECORD;
-		}
-		state->segment = (uint16_t) ((record->data[0] << 8) | record->data[1]);
-		// state->segment = ((uint16_t) record->bytes[0] << 8) |
-		// 	       (uint16_t) record->bytes[1];
-
-		state->linear = 0;
-		state->cur_type = IHEX_ESA;
-		break;
-
-	case IHEX_ELA:
-		if (record->byte_count != ADDR_COUNT) {
-			return HX_ERR_INV_RECORD;
-		}
-
-		state->linear =
-			((uint16_t) record->data[0] << 8) | (uint16_t) record->data[1];
-
-		state->segment = 0;
-		state->cur_type = IHEX_ELA;
-		break;
-
-	case IHEX_SSA:
-		if (record->byte_count != START_COUNT || record->address != 0) {
-			return HX_ERR_INV_RECORD;
-		}
-		state->code_segment =
-			(uint16_t) ((record->data[0] << 8) | record->data[1]);
-		state->instr_pointer =
-			(uint16_t) ((record->data[2] << 8) | record->data[3]);
-		state->cur_type = IHEX_SSA;
-		break;
-
-	case IHEX_SLA:
-		if (record->byte_count != START_COUNT || record->address != 0) {
-			return HX_ERR_INV_RECORD;
-		}
-
-		state->code_segment =
-			(uint16_t) ((record->data[0] << 8) | record->data[1]);
-		state->instr_pointer =
-			(uint16_t) ((record->data[2] << 8) | record->data[3]);
-		state->cur_type = IHEX_SLA;
-		break;
-
-	default:
-		return HX_ERR_INV_RECORD;
 	}
 
 	return HX_OK;
@@ -217,49 +221,49 @@ hxptr_error_t hxptr_load_profile(hxptr_t *ctx, const char *path)
 const char *hxptr_strerror(HxptrResult_t err)
 {
 	switch (err) {
-	case HX_OK:
-		return "ok";
-	case HX_ERR_INV_RECORD:
-		return "invalid record";
-	case HX_ERR_NULL:
-		return "null argument";
-	case HX_ERR_NO_RECORD:
-		return "no record found";
-	case HX_ERR_UKN_TYPE:
-		return "unknown record type";
-	case HX_ERR_BAD_CHKSM:
-		return "bad checksum";
-	case HX_ERR_BAD_APPEND:
-		return "bad append";
-	case HX_ERR_BAD_FILE:
-		return "bad or unreadable file";
-	case HX_ERR_BAD_ALLOC:
-		return "allocation failed";
-	case HX_ERR_NOT_FINALIZED:
-		return "memory not finalized";
-	case HX_ERR_PARSE:
-		return "parsing issues";
-	case HX_ERR_OVERFLOW:
-		return "too many memory/regions";
-	case HX_ERR_BAD_CONFIG:
-		return "unexpected symbol after directives";
-	case HX_ERR_PARSE_REGION:
-		return "bad region definition; expected region <name> <start> "
-			   "<end> [protected]";
-	case HX_ERR_PARSE_MEMORY:
-		return "bad memory definition; expected memory <type> <start> "
-			   "<end>";
-	case HX_ERR_UNKN_DIRECTIVE:
-		return "unknown directive; expected <directive> <args...>";
-	case HX_ERR_PARSE_DEETS:
-		return "bad details; expected mcu <name> <architecture>";
-	case HX_ERR_BAD_PROFILE:
-		return "couldn't open profile description file; double check "
-			   "path";
-	case HX_ERR_NO_EOF:
-		return "no eof in hex file. exiting";
-	default:
-		return "unknown error";
+		case HX_OK:
+			return "ok";
+		case HX_ERR_INV_RECORD:
+			return "invalid record";
+		case HX_ERR_NULL:
+			return "null argument";
+		case HX_ERR_NO_RECORD:
+			return "no record found";
+		case HX_ERR_UKN_TYPE:
+			return "unknown record type";
+		case HX_ERR_BAD_CHKSM:
+			return "bad checksum";
+		case HX_ERR_BAD_APPEND:
+			return "bad append";
+		case HX_ERR_BAD_FILE:
+			return "bad or unreadable file";
+		case HX_ERR_BAD_ALLOC:
+			return "allocation failed";
+		case HX_ERR_NOT_FINALIZED:
+			return "memory not finalized";
+		case HX_ERR_PARSE:
+			return "parsing issues";
+		case HX_ERR_OVERFLOW:
+			return "too many memory/regions";
+		case HX_ERR_BAD_CONFIG:
+			return "unexpected symbol after directives";
+		case HX_ERR_PARSE_REGION:
+			return "bad region definition; expected region <name> <start> "
+				   "<end> [protected]";
+		case HX_ERR_PARSE_MEMORY:
+			return "bad memory definition; expected memory <type> <start> "
+				   "<end>";
+		case HX_ERR_UNKN_DIRECTIVE:
+			return "unknown directive; expected <directive> <args...>";
+		case HX_ERR_PARSE_DEETS:
+			return "bad details; expected mcu <name> <architecture>";
+		case HX_ERR_BAD_PROFILE:
+			return "couldn't open profile description file; double check "
+				   "path";
+		case HX_ERR_NO_EOF:
+			return "no eof in hex file. exiting";
+		default:
+			return "unknown error";
 	}
 }
 
@@ -303,22 +307,22 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		res = hex_line_to_record(buf, &record);
 		if (res != HX_OK) {
 			switch (res) {
-			case HX_ERR_INV_RECORD:
-				err = hxptr_err(res, "line %d: record is invalid", linenum);
-				break;
-			case HX_ERR_NULL:
-				err = hxptr_err(res, hxptr_strerror(res));
-				break;
-			case HX_ERR_NO_RECORD:
-				err = hxptr_err(res, "line %d: no record found", linenum);
-				break;
-			case HX_ERR_UKN_TYPE:
-				err = hxptr_err(res, "line %d: unknown record type '%d'",
-					linenum, record.type);
-				break;
-			default:
-				err = hxptr_err(res, hxptr_strerror(res));
-				break;
+				case HX_ERR_INV_RECORD:
+					err = hxptr_err(res, "line %d: record is invalid", linenum);
+					break;
+				case HX_ERR_NULL:
+					err = hxptr_err(res, hxptr_strerror(res));
+					break;
+				case HX_ERR_NO_RECORD:
+					err = hxptr_err(res, "line %d: no record found", linenum);
+					break;
+				case HX_ERR_UKN_TYPE:
+					err = hxptr_err(res, "line %d: unknown record type '%d'",
+						linenum, record.type);
+					break;
+				default:
+					err = hxptr_err(res, hxptr_strerror(res));
+					break;
 			}
 
 			goto cleanup;
@@ -328,31 +332,31 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		res = hxptr_append_record(ctx, &record, &state);
 		if (res != HX_OK) {
 			switch (res) {
-			case HX_ERR_INV_RECORD:
-				err = hxptr_err(res, "line %d: record is invalid", linenum);
-				break;
-			case HX_ERR_NULL:
-				err = hxptr_err(res, hxptr_strerror(res));
-				break;
-			case HX_ERR_BAD_FILE:
-				err = hxptr_err(res,
-					"line %d: one or more records after "
-					"EOF is not allowed",
-					linenum);
-				break;
-			case HX_ERR_UKN_TYPE:
-				err = hxptr_err(res, "line %d: unknown record type '%d'",
-					linenum, record.type);
-				break;
-			case HX_ERR_BAD_ALLOC:
-				err = hxptr_err(res,
-					"bad allocation in %s:%d, "
-					"hxptr_append_record()",
-					__FILE__, __LINE__);
-				break;
-			default:
-				err = hxptr_err(res, hxptr_strerror(res));
-				break;
+				case HX_ERR_INV_RECORD:
+					err = hxptr_err(res, "line %d: record is invalid", linenum);
+					break;
+				case HX_ERR_NULL:
+					err = hxptr_err(res, hxptr_strerror(res));
+					break;
+				case HX_ERR_BAD_FILE:
+					err = hxptr_err(res,
+						"line %d: one or more records after "
+						"EOF is not allowed",
+						linenum);
+					break;
+				case HX_ERR_UKN_TYPE:
+					err = hxptr_err(res, "line %d: unknown record type '%d'",
+						linenum, record.type);
+					break;
+				case HX_ERR_BAD_ALLOC:
+					err = hxptr_err(res,
+						"bad allocation in %s:%d, "
+						"hxptr_append_record()",
+						__FILE__, __LINE__);
+					break;
+				default:
+					err = hxptr_err(res, hxptr_strerror(res));
+					break;
 			}
 			goto cleanup;
 		}

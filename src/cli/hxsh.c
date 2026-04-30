@@ -6,11 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define CUR_ADDR(sh) ((sh)->hx->memory->entries[(sh)->cur_entry].address)
+
 static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data);
 static hxptr_error_t info_handler(const char *args, void *out_data);
 static hxptr_error_t list_handler(hxsh_t *hx, const char *args, void *out_data);
-static hxptr_error_t which_handler(
-	hxsh_t *sh, const char *args, void *out_data);
+static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data);
 
 // out_tok map
 static const token_map_t token_map[] = {
@@ -35,7 +36,7 @@ static HxshTokenType_t classify_token(
 			}
 		}
 		// at this point I don't expect the token to be here if it's not already
-		return TOK_UNKNOWN;
+		// return TOK_UNKNOWN;
 	}
 
 	// 0x prefixed hex; unambiguous address
@@ -74,6 +75,7 @@ static HxshTokenType_t classify_token(
 
 		// has non-decimal digit chars; check if all are hex
 		p = tok;
+		// should we scan from the top again??
 		while (*p) {
 			if (!isxdigit((unsigned char) *p)) {
 				return TOK_UNKNOWN;
@@ -103,10 +105,10 @@ static int resolve_base(
 	hxsh_t *sh, HxshTokenType_t type, const char *raw, uint32_t *out)
 {
 	if (type == TOK_DOT) {
-		*out = sh->cur_idx;
+		*out = CUR_ADDR(sh);
 		return 0;
 	}
-	if (type == TOK_HEX) {
+	if (type == TOK_HEX || type == TOK_BARE_HEX) {
 		char *end;
 		*out = (uint32_t) strtoul(raw, &end, 16);
 		if (end == raw || *end != '\0') {
@@ -314,7 +316,8 @@ static void goto_render(hxql_result_t *result, hxsh_t *sh)
 {
 	goto_result_t res = result->data.go;
 	if (res.found) {
-		sh->cur_idx = res.addr;
+		// TODO; replace this one for better work
+		sh->cur_entry = res.addr;
 		printf("updated current address to %#08x", res.addr);
 		return;
 	}
@@ -446,6 +449,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	return hxptr_ok();
 }
 
+// offset by byte count or groups of 16
 static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 {
 	goto_req_t req = { 0 };
@@ -465,8 +469,8 @@ static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
 
 	if (!sh) {
-		return hxptr_err(HX_ERR_NULL, "%s:%d: goto_handler(): sh is NULL",
-			__FILE__, __LINE__);
+		return hxptr_err(
+			HX_ERR_NULL, "%s:%d: goto_handler(): sh is NULL", __FILE__, __LINE__);
 	}
 
 	if (!out_data) {
@@ -476,8 +480,8 @@ static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	// goto with no args is invalid needs a destination
 	if (!args || !*args) {
-		return hxptr_err(HX_ERR_BAD_TOKEN,
-			"goto: expected an address, region, or memory name");
+		return hxptr_err(
+			HX_ERR_BAD_TOKEN, "goto: expected an address, region, or memory name");
 	}
 
 	// token 1
@@ -508,8 +512,7 @@ static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 		// no trailing tokens allowed
 		char extra[64];
 		if (get_token(list, extra, sizeof(extra)) > 0) {
-			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "goto: unexpected token '%s'", extra);
+			return hxptr_err(HX_ERR_BAD_TOKEN, "goto: unexpected token '%s'", extra);
 		}
 
 		req.is_named = 1;
@@ -531,8 +534,7 @@ static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 		char extra[64];
 		if (get_token(list, extra, sizeof(extra)) > 0) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"goto: unexpected token '%s' ranges are not valid for goto",
-				extra);
+				"goto: unexpected token '%s' ranges are not valid for goto", extra);
 		}
 
 		req.addr = addr;
@@ -542,7 +544,7 @@ static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	// case: goto . or goto . +/- <num>
 	if (tok_type == TOK_DOT) {
-		uint32_t base = sh->cur_idx;
+		uint32_t base = sh->cur_entry;
 
 		// peek at token 2
 		char tok2[64];
@@ -594,8 +596,7 @@ static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 		// no trailing tokens
 		char extra[64];
 		if (get_token(list, extra, sizeof(extra)) > 0) {
-			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "goto: unexpected token '%s'", extra);
+			return hxptr_err(HX_ERR_BAD_TOKEN, "goto: unexpected token '%s'", extra);
 		}
 
 		req.addr = (sign == +1) ? base + offset : base - offset;
@@ -605,13 +606,12 @@ static hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	// catch all colon and anything else
 	if (tok_type == TOK_COLON) {
-		return hxptr_err(HX_ERR_BAD_TOKEN,
-			"goto: ranges are not valid, use an explicit address");
+		return hxptr_err(
+			HX_ERR_BAD_TOKEN, "goto: ranges are not valid, use an explicit address");
 	}
 
 	return hxptr_err(HX_ERR_BAD_TOKEN,
-		"goto: unexpected token '%s', expected address, region, or memory",
-		arg);
+		"goto: unexpected token '%s', expected address, region, or memory", arg);
 }
 
 // handles the info command
@@ -692,8 +692,8 @@ static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
 
 	if (!sh) {
-		return hxptr_err(HX_ERR_NULL, "%s:%d: which_handler(): sh is NULL",
-			__FILE__, __LINE__);
+		return hxptr_err(
+			HX_ERR_NULL, "%s:%d: which_handler(): sh is NULL", __FILE__, __LINE__);
 	}
 
 	if (!args || !*args) {
@@ -735,7 +735,7 @@ static hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	// store the current idx for the query engine
-	req.cur_idx = sh->cur_idx;
+	req.cur_idx = CUR_ADDR(sh);
 	memcpy(out_data, &req, sizeof(req));
 
 	return hxptr_ok();
@@ -749,19 +749,17 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	int len;
 	HxshTokenType_t tok_type;
 
-	// token map for structural tokens only
-	// keywords handled by classify_token natively
 	token_map_t sub_cmds[] = {
 		{ ".", TOK_DOT   },
 		{ "+", TOK_PLUS  },
 		{ "-", TOK_MINUS },
 		{ ":", TOK_COLON },
 	};
-	int count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
+	int sub_count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
 
 	if (!sh) {
-		return hxptr_err(HX_ERR_NULL, "%s:%d: list_handler(): sh is NULL",
-			__FILE__, __LINE__);
+		return hxptr_err(
+			HX_ERR_NULL, "%s:%d: list_handler(): sh is NULL", __FILE__, __LINE__);
 	}
 
 	if (!out_data) {
@@ -769,59 +767,87 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 			"%s:%d: list_handler(): out_data is NULL", __FILE__, __LINE__);
 	}
 
-	// no args; default behaviour
+	// -------------------------------------------------------
+	// no args -- default
+	// -------------------------------------------------------
 	if (!args || !*args) {
-		goto default_action;
+		req.start_addr = CUR_ADDR(sh);
+		req.count = HXQL_LIST_DEFAULT;
+		req.is_range = 0;
+		req.adv_cur = 1;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
 	}
 
-	// token 1: must be +/-/./addr
+	// -------------------------------------------------------
+	// token 1
+	// -------------------------------------------------------
 	len = get_token(list, arg, sizeof(arg));
 	if (len <= 0) {
-		// return hxptr_err(
-		// 	HX_ERR_BAD_TOKEN, "list: failed to read first argument");
-		goto default_action;
+		req.start_addr = CUR_ADDR(sh);
+		req.count = HXQL_LIST_DEFAULT;
+		req.is_range = 0;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
 	}
 	list += len;
 
-	tok_type = classify_token(arg, sub_cmds, count);
+	tok_type = classify_token(arg, sub_cmds, sub_count);
 
-	// case: list + <num> or list - <num>
+	// -------------------------------------------------------
+	// case: list + count  or  list - count
+	// no explicit base; uses cur_idx
+	// -------------------------------------------------------
 	if (tok_type == TOK_PLUS || tok_type == TOK_MINUS) {
+		int8_t sign = (tok_type == TOK_PLUS) ? +1 : -1;
+
 		char num[64];
 		len = get_token(list, num, sizeof(num));
 		if (len <= 0) {
 			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "list: expected a number after '%s'", arg);
+				HX_ERR_BAD_TOKEN, "list: expected a count after '%s'", arg);
 		}
 		list += len;
 
 		HxshTokenType_t num_type = classify_token(num, NULL, 0);
-		uint32_t offset;
-		if (resolve_num(num_type, num, &offset) != 0) {
+		uint32_t count;
+		if (resolve_num(num_type, num, &count) != 0) {
 			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "list: '%s' is not a valid number", num);
+				HX_ERR_BAD_TOKEN, "list: '%s' is not a valid count", num);
 		}
 
-		// no trailing tokens allowed
+		if (count == 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN, "list: count must be greater than 0");
+		}
+
+		if (sign == -1 && count > CUR_ADDR(sh)) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: count %u would underflow current address 0x%08x", count,
+				CUR_ADDR(sh));
+		}
+
 		char extra[64];
 		if (get_token(list, extra, sizeof(extra)) > 0) {
-			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"list: unexpected token '%s' after offset", extra);
+			return hxptr_err(HX_ERR_BAD_TOKEN, "list: unexpected token '%s'", extra);
 		}
 
-		// start
-		req.start_addr =
-			(tok_type == TOK_PLUS) ? sh->cur_idx : sh->cur_idx - offset;
-		req.count = (uint16_t) offset;
-		memcpy(out_data, &req, sizeof(req));
+		if (tok_type == TOK_PLUS) {
+			req.adv_cur = 1;
+		}
 
+		req.start_addr = (sign == +1) ? sh->cur_entry : sh->cur_entry - count;
+		req.count = (uint16_t) count;
+		req.is_range = 0;
+		memcpy(out_data, &req, sizeof(req));
 		return hxptr_ok();
 	}
 
-	// case: list . or list addr resolve base first
-	if (tok_type != TOK_DOT && tok_type != TOK_HEX) {
+	// -------------------------------------------------------
+	// token 1 must now be addr (TOK_HEX or TOK_DOT)
+	// -------------------------------------------------------
+	if (tok_type != TOK_HEX && tok_type != TOK_DOT) {
 		return hxptr_err(HX_ERR_BAD_TOKEN,
-			"list: unexpected token '%s', expected address or '.'", arg);
+			"list: unexpected token '%s', expected address, '.', '+' or '-'", arg);
 	}
 
 	uint32_t base;
@@ -830,11 +856,13 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 			HX_ERR_BAD_TOKEN, "list: could not resolve address '%s'", arg);
 	}
 
-	// peek at token 2
+	// -------------------------------------------------------
+	// peek token 2
+	// -------------------------------------------------------
 	char tok2[64];
 	len = get_token(list, tok2, sizeof(tok2));
 
-	// case: list . or list addr nothing follows
+	// case: list addr  or  list .  -- nothing follows
 	if (len <= 0) {
 		req.start_addr = base;
 		req.count = HXQL_LIST_DEFAULT;
@@ -844,30 +872,87 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 	list += len;
 
-	HxshTokenType_t tok2_type = classify_token(tok2, sub_cmds, count);
+	HxshTokenType_t tok2_type = classify_token(tok2, sub_cmds, sub_count);
 
-	// case: list . : addr or list addr : addr or list addr : .
+	// -------------------------------------------------------
+	// case: list addr + count  or  list . + count
+	//       list addr - count  or  list . - count
+	// -------------------------------------------------------
+	if (tok2_type == TOK_PLUS || tok2_type == TOK_MINUS) {
+		int8_t sign = (tok2_type == TOK_PLUS) ? +1 : -1;
+
+		char tok3[64];
+		len = get_token(list, tok3, sizeof(tok3));
+		if (len <= 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: expected a count after '%s'", tok2);
+		}
+		list += len;
+
+		HxshTokenType_t tok3_type = classify_token(tok3, NULL, 0);
+		uint32_t count;
+		if (resolve_num(tok3_type, tok3, &count) != 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: '%s' is not a valid count", tok3);
+		}
+
+		if (count == 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN, "list: count must be greater than 0");
+		}
+
+		if (sign == -1 && count > base) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: count %u would underflow address 0x%08x", count, base);
+		}
+
+		char extra[64];
+		if (get_token(list, extra, sizeof(extra)) > 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN, "list: unexpected token '%s'", extra);
+		}
+
+		if (tok_type == TOK_DOT && tok2_type == TOK_PLUS) {
+			req.adv_cur = 1;
+		}
+
+		req.start_addr = (sign == +1) ? base : base - count;
+		req.count = (uint16_t) count;
+		req.is_range = 0;
+		memcpy(out_data, &req, sizeof(req));
+		return hxptr_ok();
+	}
+
+	// -------------------------------------------------------
+	// case: list addr : addrb  or  list . : addr  or  list addr : .
+	// -------------------------------------------------------
 	if (tok2_type == TOK_COLON) {
 		char tok3[64];
 		len = get_token(list, tok3, sizeof(tok3));
 		if (len <= 0) {
 			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "list: expected address after ':'");
+				HX_ERR_BAD_TOKEN, "list: expected an address after ':'");
 		}
 		list += len;
 
-		HxshTokenType_t tok3_type = classify_token(tok3, sub_cmds, count);
+		HxshTokenType_t tok3_type = classify_token(tok3, sub_cmds, sub_count);
 
-		// list . : . is invalid no meaningful end point
-		if (tok3_type == TOK_DOT && base == sh->cur_idx) {
+		// list . : . -- invalid
+		if (tok_type == TOK_DOT && tok3_type == TOK_DOT) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"list: '. : .' is ambiguous, use an explicit end address");
+				"list: '. : .' is invalid, end address must be explicit");
+		}
+
+		// list addr : . -- cur must be > addr
+		if (tok3_type == TOK_DOT && CUR_ADDR(sh) <= base) {
+			return hxptr_err(HX_ERR_BAD_TOKEN,
+				"list: current position 0x%08x must be greater than "
+				"start address 0x%08x for ': .'",
+				CUR_ADDR(sh), base);
 		}
 
 		uint32_t end;
 		if (resolve_base(sh, tok3_type, tok3, &end) != 0) {
-			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"list: could not resolve end address '%s'", tok3);
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: could not resolve end address '%s'", tok3);
 		}
 
 		if (end <= base) {
@@ -877,11 +962,10 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 				end, base);
 		}
 
-		// no trailing tokens allowed
 		char extra[64];
 		if (get_token(list, extra, sizeof(extra)) > 0) {
-			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"list: unexpected token '%s' after range", extra);
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "list: unexpected token '%s' after range", extra);
 		}
 
 		req.start_addr = base;
@@ -891,52 +975,11 @@ static hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 		return hxptr_ok();
 	}
 
-	// case: list . + <num> or list . - <num>
-	//       list addr + <num> or list addr - <num>
-	if (tok2_type == TOK_PLUS || tok2_type == TOK_MINUS) {
-		int8_t sign = (tok2_type == TOK_PLUS) ? +1 : -1;
-
-		char tok3[64];
-		len = get_token(list, tok3, sizeof(tok3));
-		if (len <= 0) {
-			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "list: expected a number after '%s'", tok2);
-		}
-		list += len;
-
-		HxshTokenType_t tok3_type = classify_token(tok3, NULL, 0);
-		uint32_t offset;
-		if (resolve_num(tok3_type, tok3, &offset) != 0) {
-			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "list: '%s' is not a valid number", tok3);
-		}
-
-		// no trailing tokens allowed
-		char extra[64];
-		if (get_token(list, extra, sizeof(extra)) > 0) {
-			return hxptr_err(
-				HX_ERR_BAD_TOKEN, "list: unexpected token '%s'", extra);
-		}
-
-		// case: list addr + <num> or list addr - <num>
-		req.start_addr = (sign == +1) ? base : base - offset;
-		req.count = (uint16_t) offset;
-		req.is_range = 0;
-		memcpy(out_data, &req, sizeof(req));
-		return hxptr_ok();
-	}
-
-	// anything else after the base address is an error
+	// -------------------------------------------------------
+	// anything else after addr is an error
+	// -------------------------------------------------------
 	return hxptr_err(
 		HX_ERR_BAD_TOKEN, "list: unexpected token '%s' after address", tok2);
-
-default_action:
-	req.start_addr = sh->cur_idx;
-	req.count = HXQL_LIST_DEFAULT;
-	req.is_range = 0;
-	memcpy(out_data, &req, sizeof(req));
-
-	return hxptr_ok();
 }
 
 hxsh_t *hxsh_init(hxptr_t *core)
@@ -952,7 +995,7 @@ hxsh_t *hxsh_init(hxptr_t *core)
 	}
 
 	hx->hx = core;
-	hx->cur_idx = core->stats->addr_lowest;
+	hx->cur_entry = 0;
 	hx->search_addr = 0;
 	hx->running = 1;
 

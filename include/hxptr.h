@@ -124,6 +124,7 @@ typedef struct {
 } hxptr_record_t;
 
 typedef struct {
+	uint16_t longest_record; // this is a private entry for address resolves
 	uint32_t total_bytes;
 	uint32_t total_overlaps;
 	uint32_t total_gaps;

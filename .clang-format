@@ -3,7 +3,7 @@ IndentWidth: 4
 TabWidth: 4
 UseTab: AlignWithSpaces
 ContinuationIndentWidth: 4
-ColumnLimit: 80
+ColumnLimit: 85
 
 AlwaysBreakAfterReturnType: None      # Return type on same line as function name
 BinPackArguments: true

@@ -8,9 +8,8 @@
 #define HXQL_LIST_DEFAULT 0x0f
 #define INFO_PROF_MASK    (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
 #define WHICH_MASK        (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
-#define INFO_ALL_ARGS                                               \
-	(TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
-#define UNUSED(x) ((void) (x))
+#define INFO_ALL_ARGS (TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
+#define UNUSED(x)     ((void) (x))
 
 #include "hxptr.h"
 #include <stdint.h>
@@ -60,6 +59,7 @@ typedef struct {
 	uint32_t end_addr;
 	uint16_t count;
 	uint8_t is_range;
+	uint8_t adv_cur;
 } list_req_t;
 
 typedef struct {
@@ -96,7 +96,7 @@ typedef struct {
 
 typedef struct {
 	hxptr_t *hx;
-	uint32_t cur_idx;
+	uint32_t cur_entry;
 	uint32_t search_addr; // last search position
 	char cmd[HXQL_CMD_LEN];
 	int running;
