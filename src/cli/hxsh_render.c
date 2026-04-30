@@ -152,6 +152,14 @@ void goto_render(hxql_result_t *result, hxsh_t *sh)
 
 	if (res.found) {
 		entry = find_entry_by_addr(sh->hx->memory, res.addr);
+		if (!entry) {
+			fprintf(stderr,
+				"new address is outside upper boundary of hex file map; resetting "
+				"to previous address of 0x%08x",
+				CUR_ADDR(sh));
+
+			return;
+		}
 		sh->cur_entry = entry - sh->hx->memory->entries;
 
 		printf("updated current address to %#08x", res.addr);
