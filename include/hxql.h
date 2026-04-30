@@ -59,7 +59,7 @@ typedef struct {
 	} data;
 } hxql_result_t;
 
-hxptr_error_t hxql_execute_cmd(
-	hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result);
+hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result);
+memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr);
 
 #endif

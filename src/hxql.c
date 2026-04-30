@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr)
+memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr)
 {
 	if (!memory || memory->count == 0) {
 		return NULL;
