@@ -10,7 +10,7 @@
 #define WHICH_MASK        (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
 #define INFO_ALL_ARGS (TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
 #define UNUSED(x)     ((void) (x))
-#define CUR_ADDR(sh)  ((sh)->hx->memory->entries[(sh)->cur_entry].address)
+#define ADDR_OF(entry) (sh->hx->memory->entries[(entry)].address)
 
 #include "hxptr.h"
 #include <stdint.h>

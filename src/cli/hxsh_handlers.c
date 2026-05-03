@@ -122,7 +122,7 @@ hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	// store the current idx for the query engine
-	req.cur_idx = CUR_ADDR(sh);
+	req.cur_idx = ADDR_OF(sh->cur_entry);
 	memcpy(out_data, &req, sizeof(req));
 
 	return hxptr_ok();
@@ -156,7 +156,7 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	// no args
 	if (!args || !*args) {
-		req.start_addr = CUR_ADDR(sh);
+		req.start_addr = ADDR_OF(sh->cur_entry);
 		req.count = HXQL_LIST_DEFAULT;
 		req.is_range = 0;
 		req.adv_cur = 1;
@@ -167,7 +167,7 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	// token 1
 	len = get_token(list, arg, sizeof(arg));
 	if (len <= 0) {
-		req.start_addr = CUR_ADDR(sh);
+		req.start_addr = ADDR_OF(sh->cur_entry);
 		req.count = HXQL_LIST_DEFAULT;
 		req.is_range = 0;
 		memcpy(out_data, &req, sizeof(req));
@@ -201,10 +201,10 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 			return hxptr_err(HX_ERR_BAD_TOKEN, "list: count must be greater than 0");
 		}
 
-		if (sign == -1 && count > CUR_ADDR(sh)) {
+		if (sign == -1 && count > ADDR_OF(sh->cur_entry)) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
 				"list: count %u would underflow current address 0x%08x", count,
-				CUR_ADDR(sh));
+				ADDR_OF(sh->cur_entry));
 		}
 
 		char extra[64];
@@ -216,7 +216,9 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 			req.adv_cur = 1;
 		}
 
-		req.start_addr = (sign == +1) ? sh->cur_entry : sh->cur_entry - count;
+		uint32_t new_addr =
+			(tok_type == TOK_PLUS) ? sh->cur_entry : sh->cur_entry - count;
+		req.start_addr = ADDR_OF(new_addr);
 		req.count = (uint16_t) count;
 		req.is_range = 0;
 		memcpy(out_data, &req, sizeof(req));
@@ -315,11 +317,11 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 		}
 
 		// list addr : . -- cur must be > addr
-		if (tok3_type == TOK_DOT && CUR_ADDR(sh) <= base) {
+		if (tok3_type == TOK_DOT && ADDR_OF(sh->cur_entry) <= base) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
 				"list: current position 0x%08x must be greater than "
 				"start address 0x%08x for ': .'",
-				CUR_ADDR(sh), base);
+				ADDR_OF(sh->cur_entry), base);
 		}
 
 		uint32_t end;

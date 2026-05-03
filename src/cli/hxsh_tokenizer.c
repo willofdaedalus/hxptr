@@ -81,7 +81,7 @@ HxshTokenType_t classify_token(const char *tok, token_map_t *inputs, int inputs_
 int resolve_base(hxsh_t *sh, HxshTokenType_t type, const char *raw, uint32_t *out)
 {
 	if (type == TOK_DOT) {
-		*out = CUR_ADDR(sh);
+		*out = ADDR_OF(sh->cur_entry);
 		return 0;
 	}
 	if (type == TOK_HEX || type == TOK_BARE_HEX) {

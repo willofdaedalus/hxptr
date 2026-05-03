@@ -156,7 +156,7 @@ void goto_render(hxql_result_t *result, hxsh_t *sh)
 			fprintf(stderr,
 				"new address is outside upper boundary of hex file map; resetting "
 				"to previous address of 0x%08x",
-				CUR_ADDR(sh));
+				ADDR_OF(sh->cur_entry));
 
 			return;
 		}
