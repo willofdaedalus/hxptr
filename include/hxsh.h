@@ -47,6 +47,11 @@ typedef enum {
 	TOK_BARE_HEX,
 	TOK_DEC,
 
+	// address expression base types
+	TOK_START,
+	TOK_END,
+	TOK_REGION_NAME,
+
 	// meta
 	TOK_PLUS,
 	TOK_MINUS,
@@ -64,10 +69,7 @@ typedef struct {
 } list_req_t;
 
 typedef struct {
-	uint32_t addr;
-	uint8_t is_named; // was it goto region/memory <name>
-	HxshTokenType_t named_type; // TOK_REGIONS or TOK_MEMORY if is_named
-	char name[32]; // region or memory name if is_named
+	uint32_t addr; // fully resolved by the parser
 } goto_req_t;
 
 typedef struct {
