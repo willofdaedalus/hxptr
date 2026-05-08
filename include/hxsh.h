@@ -12,6 +12,10 @@
 #define UNUSED(x)     ((void) (x))
 #define ADDR_OF(entry) (sh->hx->memory->entries[(entry)].address)
 
+// calculates the difference between the current and the end
+// useful for resolving possible "list" commands that exceed the highest address
+#define DIFF_COUNT(v)  (sh->hx->stats->total_records - (v))
+
 #include "hxptr.h"
 #include <stdint.h>
 

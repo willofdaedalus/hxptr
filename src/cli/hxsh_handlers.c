@@ -142,7 +142,9 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	// no args: list from current, default count
 	if (!args || !*args) {
 		req.start_addr = ADDR_OF(sh->cur_entry);
-		req.count = HXQL_LIST_DEFAULT;
+		req.count = (DIFF_COUNT(sh->cur_entry) >= 15) ? HXQL_LIST_DEFAULT
+													  : DIFF_COUNT(sh->cur_entry);
+		// req.count = HXQL_LIST_DEFAULT;
 		req.is_range = 0;
 		req.adv_cur = 1;
 		memcpy(out_data, &req, sizeof(req));
@@ -152,7 +154,8 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	parsed = hxql_parse(sh, args);
 	if (parsed.err != HX_OK) {
-		return hxptr_err(parsed.err, "list: invalid address expression");
+		return hxptr_err(parsed.err,
+			"list: region/memory is outside the bounds of the hex map. skipping");
 	}
 
 	if (parsed.has_range) {
@@ -163,10 +166,6 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 		req.is_range = 1;
 		printf("%d count\n", req.count);
 	} else {
-		// single expression: start_idx holds the resolved base.
-		// the sign of the original offset determines direction and
-		// whether current is included, but hxql_parse has already
-		// resolved everything to an absolute index, so we just use it.
 		req.start_addr = ADDR_OF(parsed.start_idx);
 		req.count = parsed.count;
 		req.is_range = 0;
@@ -203,7 +202,8 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	parsed = hxql_parse(sh, args);
 	if (parsed.err != HX_OK) {
-		return hxptr_err(parsed.err, "goto: invalid address expression");
+		return hxptr_err(parsed.err,
+			"goto: region/memory is outside the bounds of the hex map. skipping");
 	}
 
 	// ranges are not valid for goto

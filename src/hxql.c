@@ -331,8 +331,9 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 		result.count = (uint16_t) (result.end_idx - result.start_idx + 1);
 	} else {
 		result.end_idx = result.start_idx;
-		// offset magnitude is the count the user typed; 0 offset means 1 entry
-		result.count = lhs.offset != 0 ? (uint16_t) abs(lhs.offset) : 1;
+		result.count = (DIFF_COUNT(result.start_idx) >= 15)
+			? HXQL_LIST_DEFAULT
+			: DIFF_COUNT(result.start_idx);
 	}
 
 	result.err = HX_OK;
