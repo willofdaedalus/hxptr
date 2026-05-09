@@ -1,7 +1,6 @@
 #include "hxql.h"
 #include "hxsh.h"
 #include "hxsh_tokenizer.h"
-#include <stdlib.h>
 #include <string.h>
 
 // token map shared across parse_addr_expr calls
@@ -17,37 +16,8 @@ static token_map_t expr_tokens[] = {
 };
 static int expr_token_count = sizeof(expr_tokens) / sizeof(expr_tokens[0]);
 
-// binary search; returns pointer to first entry with address >= addr.
-// returns null if nothing qualifies.
-memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr)
-{
-	uint32_t lo, hi, mid;
-
-	if (!memory || memory->count == 0) {
-		return NULL;
-	}
-
-	lo = 0;
-	hi = memory->count;
-
-	while (lo < hi) {
-		mid = lo + (hi - lo) / 2;
-		if (memory->entries[mid].address < addr) {
-			lo = mid + 1;
-		} else {
-			hi = mid;
-		}
-	}
-
-	if (lo >= memory->count) {
-		return NULL;
-	}
-
-	return &memory->entries[lo];
-}
-
 // same search but returns index instead of pointer. returns -1 on miss.
-static int32_t find_entry_idx_by_addr(sparse_memory_t *memory, uint32_t addr)
+static inline int32_t find_entry_idx_by_addr(sparse_memory_t *memory, uint32_t addr)
 {
 	uint32_t lo, hi, mid;
 
@@ -72,6 +42,14 @@ static int32_t find_entry_idx_by_addr(sparse_memory_t *memory, uint32_t addr)
 	}
 
 	return (int32_t) lo;
+}
+
+// binary search; returns pointer to first entry with address >= addr.
+// returns null if nothing qualifies.
+memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr)
+{
+	int32_t idx = find_entry_idx_by_addr(memory, addr);
+	return (idx >= 0) ? &memory->entries[idx] : NULL;
 }
 
 // parse_addr_expr

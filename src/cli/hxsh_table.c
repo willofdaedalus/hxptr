@@ -12,84 +12,54 @@ void table_set_headers(hxsh_table_t *t, const char **headers, uint8_t count)
 	t->col_count = count;
 	for (uint8_t i = 0; i < count; i++) {
 		strncpy(t->headers[i], headers[i], TABLE_MAX_CELL - 1);
+		t->widths[i] = strlen(headers[i]); // minimum width = header width
 	}
 }
 
-void table_add_row(hxsh_table_t *t, const char **cols, uint8_t count)
+// Call this when you already know the column widths (e.g. fixed-format output)
+void table_set_widths(hxsh_table_t *t, const uint8_t *widths, uint8_t count)
 {
-	if (t->row_count >= TABLE_MAX_ROWS) {
-		return;
-	}
-
 	for (uint8_t i = 0; i < count && i < t->col_count; i++) {
-		strncpy(t->rows[t->row_count][i], cols[i], TABLE_MAX_CELL - 1);
-	}
-
-	t->row_count++;
-}
-
-void table_render(hxsh_table_t *t, const char *title)
-{
-	// calculate column widths
-	uint8_t widths[TABLE_MAX_COLS] = { 0 };
-
-	for (uint8_t c = 0; c < t->col_count; c++) {
-		widths[c] = strlen(t->headers[c]);
-		for (uint32_t r = 0; r < t->row_count; r++) {
-			uint8_t len = strlen(t->rows[r][c]);
-			if (len > widths[c]) {
-				widths[c] = len;
-			}
+		if (widths[i] > t->widths[i]) {
+			t->widths[i] = widths[i];
 		}
 	}
+}
 
-	// total width for the separator line
-	uint32_t total = 1; // leading '+'
+void table_print_separator(hxsh_table_t *t)
+{
+	putchar('+');
 	for (uint8_t c = 0; c < t->col_count; c++) {
-		total += widths[c] + 3; // padding + '+'
+		for (uint8_t w = 0; w < t->widths[c] + 2; w++) {
+			putchar('-');
+		}
+		putchar('+');
 	}
+	putchar('\n');
+}
 
-	// title
+void table_print_header(hxsh_table_t *t, const char *title)
+{
 	if (title && *title) {
 		printf("\n%s\n", title);
 	}
 
-// separator helper
-#define SEPARATOR()                                     \
-	do {                                                \
-		putchar('+');                                   \
-		for (uint8_t c = 0; c < t->col_count; c++) {    \
-			for (uint8_t w = 0; w < widths[c] + 2; w++) \
-				putchar('-');                           \
-			putchar('+');                               \
-		}                                               \
-		putchar('\n');                                  \
-	} while (0)
+	table_print_separator(t);
 
-	// top border
-	SEPARATOR();
-
-	// headers
 	putchar('|');
 	for (uint8_t c = 0; c < t->col_count; c++) {
-		printf(" %-*s |", widths[c], t->headers[c]);
+		printf(" %-*s |", t->widths[c], t->headers[c]);
 	}
 	putchar('\n');
 
-	// header separator
-	SEPARATOR();
+	table_print_separator(t);
+}
 
-	// rows
-	for (uint32_t r = 0; r < t->row_count; r++) {
-		putchar('|');
-		for (uint8_t c = 0; c < t->col_count; c++) {
-			printf(" %-*s |", widths[c], t->rows[r][c]);
-		}
-		putchar('\n');
+void table_print_row(hxsh_table_t *t, const char **cols)
+{
+	putchar('|');
+	for (uint8_t c = 0; c < t->col_count; c++) {
+		printf(" %-*s |", t->widths[c], cols[c] ? cols[c] : "");
 	}
-
-	// bottom border
-	SEPARATOR();
-
-#undef SEPARATOR
+	putchar('\n');
 }

@@ -144,7 +144,6 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 		req.start_addr = ADDR_OF(sh->cur_entry);
 		req.count = (DIFF_COUNT(sh->cur_entry) >= 15) ? HXQL_LIST_DEFAULT
 													  : DIFF_COUNT(sh->cur_entry);
-		// req.count = HXQL_LIST_DEFAULT;
 		req.is_range = 0;
 		req.adv_cur = 1;
 		memcpy(out_data, &req, sizeof(req));

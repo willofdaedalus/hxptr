@@ -2,62 +2,104 @@
 #include "hxql.h"
 #include "hxsh_table.h"
 #include <stdio.h>
-
+#include <string.h>
 
 void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 {
-	profile_region_t region;
-	profile_memory_t mem;
 	hxsh_table_t t;
 
 	if (!profile) {
-		// do something
 		fprintf(stderr, "you shouldn't be here...\n");
 		return;
 	}
 
 	table_init(&t);
-	if (type == TOK_MEMORY) {
-		char s_start[16], s_size[16];
 
+	if (type == TOK_MEMORY) {
 		const char *headers[] = { "name", "start", "size" };
 		table_set_headers(&t, headers, 3);
 
+		// pre-scan name width; start is always 10, size varies
+		uint8_t name_w = strlen("name");
+		uint8_t size_w = strlen("size");
+		char s_size[16];
+
 		for (uint8_t i = 0; i < profile->mem_count; i++) {
-			mem = profile->mem_blocks[i];
-			snprintf(s_start, sizeof(s_start), "0x%08x", mem.start);
-			snprintf(s_size, sizeof(s_size), "%u", mem.size);
-			const char *row[] = { mem.type, s_start, s_size };
-			table_add_row(&t, row, 3);
+			uint8_t nw = strlen(profile->mem_blocks[i].type);
+			if (nw > name_w) {
+				name_w = nw;
+			}
+
+			snprintf(s_size, sizeof(s_size), "%u", profile->mem_blocks[i].size);
+			uint8_t sw = strlen(s_size);
+			if (sw > size_w) {
+				size_w = sw;
+			}
 		}
 
-		table_render(&t, "memory info");
+		const uint8_t widths[] = { name_w, 10, size_w };
+		table_set_widths(&t, widths, 3);
+		table_print_header(&t, "memory info");
+
+		char s_start[12];
+		for (uint8_t i = 0; i < profile->mem_count; i++) {
+			profile_memory_t *mem = &profile->mem_blocks[i];
+			snprintf(s_start, sizeof(s_start), "0x%08x", mem->start);
+			snprintf(s_size, sizeof(s_size), "%u", mem->size);
+			const char *row[] = { mem->type, s_start, s_size };
+			table_print_row(&t, row);
+		}
+
+		table_print_separator(&t);
 
 	} else if (type == TOK_REGIONS) {
-		char s_start[16], s_end[16];
-
 		const char *headers[] = { "name", "start", "end", "protected" };
 		table_set_headers(&t, headers, 4);
 
+		// start/end always 10, protected always "protected" (9) width
+		uint8_t name_w = strlen("name");
 		for (uint8_t i = 0; i < profile->region_count; i++) {
-			region = profile->regions[i];
-			snprintf(s_start, sizeof(s_start), "0x%08x", region.start);
-			snprintf(s_end, sizeof(s_end), "0x%08x", region.end);
-			const char *row[] = { region.name, s_start, s_end,
-				region.protected ? "yes" : "no" };
-			table_add_row(&t, row, 4);
+			uint8_t nw = strlen(profile->regions[i].name);
+			if (nw > name_w) {
+				name_w = nw;
+			}
 		}
 
-		table_render(&t, "regions info");
+		const uint8_t widths[] = { name_w, 10, 10, 9 };
+		table_set_widths(&t, widths, 4);
+		table_print_header(&t, "regions info");
+
+		char s_start[12], s_end[12];
+		for (uint8_t i = 0; i < profile->region_count; i++) {
+			profile_region_t *reg = &profile->regions[i];
+			snprintf(s_start, sizeof(s_start), "0x%08x", reg->start);
+			snprintf(s_end, sizeof(s_end), "0x%08x", reg->end);
+			const char *row[] = { reg->name, s_start, s_end,
+				reg->protected ? "yes" : "no" };
+			table_print_row(&t, row);
+		}
+
+		table_print_separator(&t);
+
 	} else if (type == TOK_PROFILE) {
 		const char *headers[] = { "name", "architecture", "vendor" };
-		const char *row[] = { profile->name, profile->arch, profile->vendor };
-
 		table_set_headers(&t, headers, 3);
-		table_add_row(&t, row, 4);
-		table_render(&t, "profile info");
+
+		// single row; widths are just the max of header vs value per column
+		uint8_t widths[] = {
+			(uint8_t) MAX(strlen("name"), strlen(profile->name)),
+			(uint8_t) MAX(strlen("architecture"), strlen(profile->arch)),
+			(uint8_t) MAX(strlen("vendor"), strlen(profile->vendor)),
+		};
+		table_set_widths(&t, widths, 3);
+		table_print_header(&t, "profile info");
+
+		const char *row[] = { profile->name, profile->arch, profile->vendor };
+		table_print_row(&t, row);
+		table_print_separator(&t);
+
 	} else {
-		printf("you're not allowed here!\n");
+		fprintf(stderr, "you're not allowed here!\n");
 	}
 }
 
@@ -80,55 +122,55 @@ void which_render(hxql_result_t *result, uint8_t type)
 
 void list_render(hxql_result_t *result)
 {
-	char hex_map[] = "0123456789abcdef";
+	static const char hex_map[] = "0123456789abcdef";
 	list_result_t res = result->data.list;
 	hxsh_table_t t;
 	const char *headers[] = { "address", "data" };
+	char addr[12];
 
-	// get max width for proper alignment
 	uint8_t max_row_width = 0;
 	for (uint16_t j = 0; j < res.count; j++) {
 		if (res.start[j].byte_count > max_row_width) {
 			max_row_width = res.start[j].byte_count;
 		}
 	}
-
-
 	if (max_row_width == 0) {
 		max_row_width = 16;
 	}
 
+	// widths are fully known: address is always "0x%08x" = 10 chars,
+	// data is "XX XX ... XX" = (n*3)-1 chars
+	uint8_t data_width = (max_row_width * 3) - 1;
+	char data_str[data_width + 1]; // bounded, not a VLA inside the loop
+
 	table_init(&t);
 	table_set_headers(&t, headers, 2);
+	const uint8_t widths[] = { 10, data_width };
+	table_set_widths(&t, widths, 2);
+	table_print_header(&t, "list entries");
 
 	for (uint16_t i = 0; i < res.count; i++) {
 		memory_entry_t *entry = &res.start[i];
-		char addr[16];
-		// allocate string for exactly the max width found
-		char data_str[(max_row_width * 3) + 1];
 
 		snprintf(addr, sizeof(addr), "0x%08x", entry->address);
 		for (uint8_t j = 0; j < max_row_width; j++) {
 			int offset = j * 3;
-
 			if (j < entry->byte_count) {
 				uint8_t b = entry->bytes[j];
 				data_str[offset] = hex_map[(b >> 4) & 0x0f];
 				data_str[offset + 1] = hex_map[b & 0x0f];
 			} else {
-				// pad the "empty" space with dashes
 				data_str[offset] = '-';
 				data_str[offset + 1] = '-';
 			}
-			// space between bytes, null at the very end of the string
 			data_str[offset + 2] = (j == max_row_width - 1) ? '\0' : ' ';
 		}
 
 		const char *row[] = { addr, data_str };
-		table_add_row(&t, row, 2);
+		table_print_row(&t, row);
 	}
 
-	table_render(&t, "list entries");
+	table_print_separator(&t);
 }
 
 void stats_render(hxql_result_t *result)

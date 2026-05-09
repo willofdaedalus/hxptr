@@ -11,7 +11,7 @@
 #define INFO_ALL_ARGS (TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
 #define UNUSED(x)     ((void) (x))
 #define ADDR_OF(entry) (sh->hx->memory->entries[(entry)].address)
-
+#define MAX(a, b)      ((a) > (b) ? (a) : (b))
 // calculates the difference between the current and the end
 // useful for resolving possible "list" commands that exceed the highest address
 #define DIFF_COUNT(v)  (sh->hx->stats->total_records - (v))
