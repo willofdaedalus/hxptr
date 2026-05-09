@@ -48,8 +48,7 @@ static HxptrResult_t parse_number(const char *str, uint32_t *out)
 	errno = 0;
 	unsigned long val = strtoul(str, &endptr, 0);
 
-	if (endptr == str || *endptr != '\0' || errno == ERANGE ||
-		val > UINT32_MAX) {
+	if (endptr == str || *endptr != '\0' || errno == ERANGE || val > UINT32_MAX) {
 		return HX_ERR_PARSE_BAD_VALUE;
 	}
 
@@ -89,7 +88,6 @@ static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char **line)
 	profile_memory_t mem = { 0 };
 	HxptrResult_t res;
 
-	printf("%s\n", type);
 	strncpy(mem.type, type, sizeof(mem.type) - 1);
 
 	res = parse_number(start_str, &mem.start);
@@ -136,7 +134,6 @@ static HxptrResult_t parse_region_entry(mcu_profile_t *pf, char **line)
 	profile_region_t reg = { 0 };
 	HxptrResult_t res;
 
-	printf("%s\n", name);
 	strncpy(reg.name, name, sizeof(reg.name) - 1);
 
 	res = parse_number(start_str, &reg.start);
@@ -176,8 +173,7 @@ static const directive_entry_t directives[] = {
 	{ "region", parse_region_entry },
 };
 
-static const size_t directive_count =
-	sizeof(directives) / sizeof(directives[0]);
+static const size_t directive_count = sizeof(directives) / sizeof(directives[0]);
 
 mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 {
@@ -196,8 +192,8 @@ mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 	mcu_profile_t *prof = calloc(1, sizeof(mcu_profile_t));
 	if (!prof) {
 		res = HX_ERR_BAD_ALLOC;
-		*err = hxptr_err(res, "bad allocation in %s:%d, mcu_profile_load()",
-			__FILE__, __LINE__);
+		*err = hxptr_err(
+			res, "bad allocation in %s:%d, mcu_profile_load()", __FILE__, __LINE__);
 		fclose(fp);
 		return NULL;
 	}
@@ -207,8 +203,8 @@ mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 
 	if (!prof->mem_blocks || !prof->regions) {
 		res = HX_ERR_BAD_ALLOC;
-		*err = hxptr_err(res, "bad allocation in %s:%d, mcu_profile_load()",
-			__FILE__, __LINE__);
+		*err = hxptr_err(
+			res, "bad allocation in %s:%d, mcu_profile_load()", __FILE__, __LINE__);
 		goto fail;
 	}
 
@@ -235,8 +231,8 @@ mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 
 		if (!fn) {
 			res = HX_ERR_UNKN_DIRECTIVE;
-			*err = hxptr_err(
-				res, "line %d: unknown directive %s", linenum, directive);
+			*err =
+				hxptr_err(res, "line %d: unknown directive %s", linenum, directive);
 			goto fail;
 		}
 
@@ -266,14 +262,11 @@ mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 						res, "line %d: couldn't parse region values", linenum);
 					break;
 				case HX_ERR_PARSE:
-					*err = hxptr_err(
-						res, "line %d: unable to parse line", linenum);
+					*err = hxptr_err(res, "line %d: unable to parse line", linenum);
 					break;
 				default:
 					*err = hxptr_err(res, hxptr_strerror(res));
 			}
-			*err = hxptr_err(
-				res, "line %d: unknown directive %s", linenum, directive);
 			goto fail;
 		}
 

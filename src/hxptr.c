@@ -83,8 +83,7 @@ static HxptrResult_t hxptr_append_record(
 			if (record->byte_count != ADDR_COUNT) {
 				return HX_ERR_INV_RECORD;
 			}
-			state->segment =
-				(uint16_t) ((record->data[0] << 8) | record->data[1]);
+			state->segment = (uint16_t) ((record->data[0] << 8) | record->data[1]);
 			// state->segment = ((uint16_t) record->bytes[0] << 8) |
 			// 	       (uint16_t) record->bytes[1];
 
@@ -147,10 +146,9 @@ static int sm_comp(const void *a, const void *b)
 	}
 
 	// tie-breaker; compare by the line_num as most recent should always win
-	if (entry_a->line_num < entry_b->line_num) {
+	if (entry_a->linenum < entry_b->linenum) {
 		return -1;
-	}
-	if (entry_a->line_num > entry_b->line_num) {
+	} else {
 		return 1;
 	}
 
@@ -182,10 +180,6 @@ hxptr_t *hxptr_init(void)
 		goto cleanup_stats;
 	}
 
-	// hx->error = calloc(1, sizeof(hxptr_error_t));
-	// if (!hx->error) {
-	// 	goto cleanup_reports;
-	// }
 	hx->stats->addr_lowest = UINT32_MAX;
 
 	return hx;
@@ -296,8 +290,8 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	ctx->filename = strdup(filename);
 	if (!ctx->filename) {
 		res = HX_ERR_BAD_ALLOC;
-		err = hxptr_err(res, "bad allocation in %s:%d, hxptr_load_file()",
-			__FILE__, __LINE__);
+		err = hxptr_err(
+			res, "bad allocation in %s:%d, hxptr_load_file()", __FILE__, __LINE__);
 		goto cleanup;
 	}
 
@@ -404,8 +398,7 @@ hxptr_error_t hxptr_finalize_memory(hxptr_t *hx)
 		return hxptr_err(HX_OK, hxptr_strerror(HX_OK));
 	}
 
-	qsort(hx->memory->entries, hx->memory->count, sizeof(memory_entry_t),
-		sm_comp);
+	qsort(hx->memory->entries, hx->memory->count, sizeof(memory_entry_t), sm_comp);
 
 	hx->memory->finalized = 1;
 

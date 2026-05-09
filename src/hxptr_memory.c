@@ -48,7 +48,7 @@ HxptrResult_t sm_append_record(
 	// profile
 	entry->address = base_addr;
 	entry->byte_count = record->byte_count;
-	entry->line_num = record->linenum;
+	entry->linenum = record->linenum;
 	entry->checksum = record->checksum;
 	entry->byte_sum = record->byte_sum;
 	memcpy(entry->bytes, record->data, record->byte_count);

@@ -78,6 +78,12 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 		case TOK_GOTO:
 			err = goto_handler(sh, p, &req.req_type.goto_req);
 			break;
+		case TOK_QUIT:
+			sh->running = 0;
+			goto quit_handler;
+			break;
+		case TOK_HELP:
+			break;
 	}
 	if (err.code != HX_OK) {
 		return err;
@@ -90,6 +96,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 
 	render(&result, sh);
 
+quit_handler:
 	return hxptr_ok();
 }
 

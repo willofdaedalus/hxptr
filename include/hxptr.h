@@ -81,7 +81,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t address; // contains extended hi and lo bytes
-	uint32_t line_num; // line number for conflict resolutions
+	uint32_t linenum; // line number for conflict resolutions
 	uint8_t bytes[MAX_BYTES]; // actual data
 	uint8_t byte_count; // number of bytes to help in fast rendering
 	uint8_t checksum; // checksum

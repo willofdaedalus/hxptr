@@ -375,6 +375,7 @@ hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *resu
 			which_req_t which_req = req->req_type.which_req;
 			which_result_t which_res = { 0 };
 			i = 0;
+			// check profile is not NULL
 			profile = hx->profile;
 			which_res.cur_addr = which_req.cur_idx;
 			result->type = HXQL_RES_WHICH;

@@ -163,7 +163,6 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 		req.end_addr = ADDR_OF(parsed.end_idx);
 		req.count = (uint16_t) (parsed.end_idx - parsed.start_idx + 1);
 		req.is_range = 1;
-		printf("%d count\n", req.count);
 	} else {
 		req.start_addr = ADDR_OF(parsed.start_idx);
 		req.count = parsed.count;
