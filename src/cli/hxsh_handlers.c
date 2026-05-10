@@ -1,7 +1,6 @@
 #include "hxsh_handlers.h"
 #include "hxql.h"
 #include "hxsh_tokenizer.h"
-#include <stdio.h>
 #include <string.h>
 
 // handles the info command

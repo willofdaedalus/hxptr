@@ -106,18 +106,37 @@ void profile_render(mcu_profile_t *profile, HxshTokenType_t type)
 void which_render(hxql_result_t *result, uint8_t type)
 {
 	which_result_t res = result->data.which;
+	hxsh_table_t t;
+	uint8_t widths[] = { strlen("address"), 10 };
+	const char *headers[] = { "current", "value" };
+
+	const char *row[2];
+	table_init(&t);
+	table_set_headers(&t, headers, 2);
+	table_set_widths(&t, widths, 2);
+	table_print_header(&t, "which info");
+
 
 	if (type & TOK_WH_REGION) {
-		printf("current region: %s\n", res.region);
+		row[0] = "region";
+		row[1] = res.region;
+		table_print_row(&t, row);
 	}
 
 	if (type & TOK_WH_ADDR) {
-		printf("current address: 0x%08x\n", res.cur_addr);
+		row[0] = "address";
+		// eyes on this
+		snprintf(row[1], 16, "0x%08x", res.cur_addr);
+		table_print_row(&t, row);
 	}
 
 	if (type & TOK_WH_MEMORY) {
-		printf("current memory: %s\n", res.memory);
+		row[0] = "memory";
+		row[1] = res.memory;
+		table_print_row(&t, row);
 	}
+
+	table_print_separator(&t);
 }
 
 void list_render(hxql_result_t *result)
@@ -176,6 +195,15 @@ void list_render(hxql_result_t *result)
 void stats_render(hxql_result_t *result)
 {
 	hxptr_stats_t *s = result->data.info.stats;
+	hxsh_table_t t;
+	const char *headers[] = { "metadata", "count" };
+	table_init(&t);
+	table_set_headers(&t, headers, 2);
+
+	const uint8_t widths[] = { 15, 10 };
+	table_set_widths(&t, widths, 2);
+	table_print_header(&t, "stats info");
+
 
 	printf("\nstats info\n");
 	printf("  %-20s %u\n", "total bytes", s->total_bytes);
