@@ -111,12 +111,11 @@ void which_render(hxql_result_t *result, uint8_t type)
 	const char *headers[] = { "current", "value" };
 
 	char addr_buf[12];
-	char *row[2];
+	const char *row[2];
 	table_init(&t);
 	table_set_headers(&t, headers, 2);
 	table_set_widths(&t, widths, 2);
 	table_print_header(&t, "which info");
-
 
 	if (type & TOK_WH_REGION) {
 		row[0] = "region";

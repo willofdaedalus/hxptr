@@ -169,29 +169,16 @@ typedef struct {
 hxptr_t *hxptr_init(void);
 hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path);
 void hxptr_free(hxptr_t *ctx);
-// void hxptr_set_err(hxptr_t *ctx, const char *fmt, ...);
 
 // memory operations
 hxptr_error_t hxptr_finalize_memory(hxptr_t *ctx);
 hxptr_error_t hxptr_get_byte(hxptr_t *ctx, uint32_t addr, uint8_t *out);
 hxptr_error_t hxptr_get_range(
 	hxptr_t *ctx, uint32_t start, uint32_t size, uint8_t *buf, uint32_t *len);
-HxptrResult_t hxptr_print_stats(hxptr_t *hx);
 hxptr_error_t hxptr_load_profile(hxptr_t *ctx, const char *path);
 
 hxptr_error_t hxptr_ok(void);
 hxptr_error_t hxptr_err(HxptrResult_t res, const char *msg, ...);
 const char *hxptr_strerror(HxptrResult_t err);
-
-// results query
-// void sm_get_stats(hxptr_t *ctx, hxptr_stats_t *out);
-// HxptrResult_t diag_get_count(hxptr_t *ctx);
-// const diagnostic_t *diag_get(hxptr_t *ctx, uint32_t idx);
-//
-// HxptrResult_t diag_get_overlap_bytes(hxptr_t *ctx,
-// 				     uint32_t diag_idx,
-// 				     uint8_t **first_data,
-// 				     uint8_t **second_data,
-// 				     uint32_t *size);
 
 #endif // HXPTR_H

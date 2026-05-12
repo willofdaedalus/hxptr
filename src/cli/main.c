@@ -4,28 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 
-static void sm_print_entries(const sparse_memory_t *mem)
-{
-	if (!mem) {
-		return;
-	}
-
-	for (size_t i = 0; i < mem->count; ++i) {
-		memory_entry_t *entry = &mem->entries[i];
-
-		if (entry->is_data_record) {
-			// print address in hex
-			printf("[0x%08x] ", entry->address);
-
-			// print bytes separated by spaces
-			for (uint8_t j = 0; j < entry->byte_count; ++j) {
-				printf("%02x ", entry->bytes[j]);
-			}
-			printf("\n");
-		}
-	}
-}
-
 static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 {
 	hxptr_error_t err = { 0 };

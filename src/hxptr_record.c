@@ -95,7 +95,6 @@ static inline HxptrResult_t validate_checksum(uint8_t *data, size_t data_len)
 	if (!data) {
 		return HX_ERR_NULL;
 	}
-
 	for (size_t i = 0; i < data_len; i++) {
 		sum += data[i];
 	}
@@ -161,49 +160,4 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	out_record->checksum = bytes[count - 1];
 
 	return HX_OK;
-}
-
-void record_to_str(hxptr_record_t *record)
-{
-	if (!record) {
-		fprintf(stderr, "invalid or null record. skipping...\n");
-		return;
-	}
-
-	printf("byte count: %.2x\n", record->byte_count);
-	printf("address: %.4x\n", record->address);
-	printf("type: ");
-	switch (record->type) {
-		case IHEX_DATA:
-			printf("data (%.2x)\n", record->type);
-			break;
-
-		case IHEX_EOF:
-			printf("end of file (%.2x)\n", record->type);
-			break;
-
-		case IHEX_ESA:
-			printf("extended segment address (%.2x)\n", record->type);
-			break;
-
-		case IHEX_SSA:
-			printf("start segment address (%.2x)\n", record->type);
-			break;
-
-		case IHEX_ELA:
-			printf("extended linear address (%.2x)\n", record->type);
-			break;
-
-		case IHEX_SLA:
-			printf("start linear address (%.2x)\n", record->type);
-			break;
-	}
-
-	printf("data bytes: ");
-	for (int i = 0; i < record->byte_count; i++) {
-		printf("%.2x ", record->data[i]);
-	}
-	putchar('\n');
-
-	printf("checksum: %.2x\n", record->checksum);
 }

@@ -407,19 +407,6 @@ hxptr_error_t hxptr_finalize_memory(hxptr_t *hx)
 	return hxptr_err(res, hxptr_strerror(res));
 }
 
-HxptrResult_t hxptr_print_stats(hxptr_t *hx)
-{
-	printf("hxptr stats for '%s'\n", hx->filename);
-	printf("read %u total bytes\n", hx->stats->total_bytes);
-	printf("read %u total records\n", hx->stats->total_records);
-	printf("read %u total overlaps\n", hx->stats->total_overlaps);
-	printf("read %u total gaps\n", hx->stats->total_gaps);
-	printf("address starts at 0x%08x\n", hx->stats->addr_lowest);
-	printf("address ends at 0x%08x\n", hx->stats->addr_highest);
-
-	return HX_OK;
-}
-
 hxptr_error_t hxptr_err(HxptrResult_t res, const char *msg, ...)
 {
 	hxptr_error_t err = { 0 };
