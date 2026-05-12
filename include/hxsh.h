@@ -19,6 +19,7 @@
 
 #include "hxptr.h"
 #include <stdint.h>
+#include <stdio.h>
 
 typedef hxptr_error_t (*cmd_handler)(const char *args, void *out_data);
 
@@ -134,7 +135,7 @@ typedef struct {
 } hxsh_t;
 
 hxsh_t *hxsh_init(hxptr_t *core);
-hxptr_error_t hxsh_repl(hxsh_t *sh);
+hxptr_error_t hxsh_repl(hxsh_t *sh, FILE *input);
 void hxsh_free(hxsh_t *hx);
 
 #endif

@@ -145,7 +145,7 @@ int main(int ac, char **av)
 		display_no_prof_warning();
 	}
 	while (sh->running) {
-		err = hxsh_repl(sh);
+		err = hxsh_repl(sh, stdin);
 		if (err.code != HX_OK) {
 			fprintf(stderr, "%s\n", err.msg);
 		}

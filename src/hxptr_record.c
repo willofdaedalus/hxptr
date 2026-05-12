@@ -174,29 +174,29 @@ void record_to_str(hxptr_record_t *record)
 	printf("address: %.4x\n", record->address);
 	printf("type: ");
 	switch (record->type) {
-	case IHEX_DATA:
-		printf("data (%.2x)\n", record->type);
-		break;
+		case IHEX_DATA:
+			printf("data (%.2x)\n", record->type);
+			break;
 
-	case IHEX_EOF:
-		printf("end of file (%.2x)\n", record->type);
-		break;
+		case IHEX_EOF:
+			printf("end of file (%.2x)\n", record->type);
+			break;
 
-	case IHEX_ESA:
-		printf("extended segment address (%.2x)\n", record->type);
-		break;
+		case IHEX_ESA:
+			printf("extended segment address (%.2x)\n", record->type);
+			break;
 
-	case IHEX_SSA:
-		printf("start segment address (%.2x)\n", record->type);
-		break;
+		case IHEX_SSA:
+			printf("start segment address (%.2x)\n", record->type);
+			break;
 
-	case IHEX_ELA:
-		printf("extended linear address (%.2x)\n", record->type);
-		break;
+		case IHEX_ELA:
+			printf("extended linear address (%.2x)\n", record->type);
+			break;
 
-	case IHEX_SLA:
-		printf("start linear address (%.2x)\n", record->type);
-		break;
+		case IHEX_SLA:
+			printf("start linear address (%.2x)\n", record->type);
+			break;
 	}
 
 	printf("data bytes: ");

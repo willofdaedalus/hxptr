@@ -21,7 +21,7 @@ static const token_map_t token_map[] = {
 static const size_t map_count = sizeof(token_map) / sizeof(token_map[0]);
 
 
-hxptr_error_t hxsh_repl(hxsh_t *sh)
+hxptr_error_t hxsh_repl(hxsh_t *sh, FILE *input)
 {
 	char cmd[32];
 	int len = 0;
@@ -32,7 +32,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 
 	// TODO; remember to flush the stdin after every command runs
 	printf(PROMPT);
-	if (fgets(sh->cmd, sizeof(sh->cmd), stdin) == NULL) {
+	if (fgets(sh->cmd, sizeof(sh->cmd), input) == NULL) {
 		sh->running = 0;
 		return hxptr_ok();
 	}

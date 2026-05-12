@@ -110,7 +110,8 @@ void which_render(hxql_result_t *result, uint8_t type)
 	uint8_t widths[] = { strlen("address"), 10 };
 	const char *headers[] = { "current", "value" };
 
-	const char *row[2];
+	char addr_buf[12];
+	char *row[2];
 	table_init(&t);
 	table_set_headers(&t, headers, 2);
 	table_set_widths(&t, widths, 2);
@@ -124,9 +125,8 @@ void which_render(hxql_result_t *result, uint8_t type)
 	}
 
 	if (type & TOK_WH_ADDR) {
-		row[0] = "address";
-		// eyes on this
-		snprintf(row[1], 16, "0x%08x", res.cur_addr);
+		snprintf(addr_buf, sizeof(addr_buf), "0x%08x", res.cur_addr);
+		const char *row[] = { "address", addr_buf };
 		table_print_row(&t, row);
 	}
 
@@ -195,16 +195,6 @@ void list_render(hxql_result_t *result)
 void stats_render(hxql_result_t *result)
 {
 	hxptr_stats_t *s = result->data.info.stats;
-	hxsh_table_t t;
-	const char *headers[] = { "metadata", "count" };
-	table_init(&t);
-	table_set_headers(&t, headers, 2);
-
-	const uint8_t widths[] = { 15, 10 };
-	table_set_widths(&t, widths, 2);
-	table_print_header(&t, "stats info");
-
-
 	printf("\nstats info\n");
 	printf("  %-20s %u\n", "total bytes", s->total_bytes);
 	printf("  %-20s %u\n", "total records", s->total_records);
