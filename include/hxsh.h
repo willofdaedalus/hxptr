@@ -1,13 +1,14 @@
 #ifndef SHELL_H
 #define SHELL_H
 
-#define PROMPT            "(hxptr) "
-#define MIN_DISP_VALS     0x10
-#define HXQL_MAX_TOKENS   0x20
-#define HXQL_CMD_LEN      0x100
-#define HXQL_LIST_DEFAULT 0x0f
-#define INFO_PROF_MASK    (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
-#define WHICH_MASK        (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
+#define PROMPT                  "(hxptr) "
+#define HXSH_SEARCH_MAX_PATTERN 0x10
+#define MIN_DISP_VALS           0x10
+#define HXQL_MAX_TOKENS         0x20
+#define HXQL_CMD_LEN            0x100
+#define HXQL_LIST_DEFAULT       0x0f
+#define INFO_PROF_MASK          (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
+#define WHICH_MASK              (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
 #define INFO_ALL_ARGS (TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
 #define UNUSED(x)     ((void) (x))
 #define ADDR_OF(entry) (sh->hx->memory->entries[(entry)].address)
@@ -31,12 +32,14 @@ typedef enum {
 
 	// commands
 	TOK_INFO,
-	TOK_SEARCH,
+	TOK_FIND,
 	TOK_GOTO,
 	TOK_WHICH,
 	TOK_LIST,
 	TOK_HELP,
 	TOK_QUIT,
+	TOK_NEXT,
+	TOK_PREV,
 
 	// "which" cmd types
 	TOK_WH_ADDR = (1 << 5),
@@ -85,6 +88,25 @@ typedef struct {
 	uint32_t cur_idx;
 } which_req_t;
 
+
+typedef struct {
+	uint32_t range_start_idx;
+	uint32_t range_end_idx;
+	int32_t last_hit_idx;
+	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
+	uint8_t pattern_len;
+	uint8_t active;
+} hxsh_search_t;
+
+typedef struct {
+	uint32_t range_start_idx;
+	uint32_t range_end_idx;
+	int32_t last_hit_idx;
+	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
+	uint8_t pattern_len;
+	uint8_t is_next;
+} search_req_t;
+
 typedef struct {
 	HxshTokenType_t type;
 	union {
@@ -92,6 +114,7 @@ typedef struct {
 		info_req_t info_req;
 		list_req_t list_req;
 		goto_req_t goto_req;
+		search_req_t search_req;
 	} req_type;
 
 } hxsh_req_t;
@@ -105,8 +128,9 @@ typedef struct {
 	hxptr_t *hx;
 	uint32_t cur_entry;
 	uint32_t search_addr; // last search position
+	hxsh_search_t search;
 	char cmd[HXQL_CMD_LEN];
-	int running;
+	uint8_t running;
 } hxsh_t;
 
 hxsh_t *hxsh_init(hxptr_t *core);

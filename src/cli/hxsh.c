@@ -10,13 +10,13 @@
 
 // out_tok map
 static const token_map_t token_map[] = {
-	{ "info",   TOK_INFO   },
-	{ "search", TOK_SEARCH },
-	{ "goto",   TOK_GOTO   },
-	{ "which",  TOK_WHICH  },
-	{ "list",   TOK_LIST   },
-	{ "help",   TOK_HELP   },
-	{ "quit",   TOK_QUIT   },
+	{ "info",  TOK_INFO  },
+	{ "find",  TOK_FIND  },
+	{ "goto",  TOK_GOTO  },
+	{ "which", TOK_WHICH },
+	{ "list",  TOK_LIST  },
+	{ "help",  TOK_HELP  },
+	{ "quit",  TOK_QUIT  },
 };
 static const size_t map_count = sizeof(token_map) / sizeof(token_map[0]);
 
@@ -67,13 +67,16 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	req.type = op;
 	switch (req.type) {
 		case TOK_INFO:
-			err = info_handler(p, &req.req_type.info_req);
+			err = info_handler(sh, p, &req.req_type.info_req);
 			break;
 		case TOK_LIST:
 			err = list_handler(sh, p, &req.req_type.list_req);
 			break;
 		case TOK_WHICH:
 			err = which_handler(sh, p, &req.req_type.which_req);
+			break;
+		case TOK_FIND:
+			err = find_handler(sh, p, &req.req_type.search_req);
 			break;
 		case TOK_GOTO:
 			err = goto_handler(sh, p, &req.req_type.goto_req);
@@ -89,7 +92,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 		return err;
 	}
 
-	err = hxql_execute_cmd(sh->hx, &req, &result);
+	err = hxql_execute_cmd(sh, &req, &result);
 	if (err.code != HX_OK) {
 		return err;
 	}

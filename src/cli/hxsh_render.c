@@ -284,9 +284,29 @@ void render(hxql_result_t *result, hxsh_t *sh)
 			goto_render(result, sh);
 			break;
 
+		case HXQL_RES_FIND:
+			search_render(result);
+			break;
+
 		default:
 			fprintf(stderr, "nothing to see here... yet\n");
 			break;
 	}
 	putchar('\n');
+}
+
+void search_render(hxql_result_t *result)
+{
+	search_result_t *res = &result->data.search;
+
+	if (!res->found) {
+		printf("pattern not found\n");
+		return;
+	}
+
+	if (res->wrapped) {
+		printf("end of entries; wrapping around\n");
+	}
+
+	printf("found at 0x%08x\n", res->hit_addr);
 }

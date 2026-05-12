@@ -221,14 +221,12 @@ int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr)
 	return result_idx;
 }
 
-// -------------------------------------------------------------------------
 // hxql_parse
 //
 // entry point for all command handlers.
 // takes the arg string after the command name has been stripped.
 // returns resolved entry indices in hxql_parser_t.
 // err is set on any syntax or bounds failure.
-// -------------------------------------------------------------------------
 hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 {
 	hxql_parser_t result = { 0 };
@@ -320,7 +318,7 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 }
 
 // hxql_execute_cmd
-hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result)
+hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *result)
 {
 	memory_entry_t *start;
 	mcu_profile_t *profile;
@@ -335,17 +333,17 @@ hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *resu
 			result->type = HXQL_RES_INFO;
 
 			if (info_req.args & TOK_STATS) {
-				info_res.stats = hx->stats;
+				info_res.stats = sh->hx->stats;
 				info_res.args |= TOK_STATS;
 			}
 
 			if (info_req.args & INFO_PROF_MASK) {
-				info_res.profile = hx->profile ? hx->profile : NULL;
+				info_res.profile = sh->hx->profile ? sh->hx->profile : NULL;
 				info_res.args |= (info_req.args & INFO_PROF_MASK);
 			}
 
 			if (info_req.args & TOK_DIAG) {
-				info_res.diagnostics = hx->reports->entries;
+				info_res.diagnostics = sh->hx->reports->entries;
 				info_res.args |= TOK_DIAG;
 			}
 
@@ -358,7 +356,7 @@ hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *resu
 			list_result_t list_res = { 0 };
 			result->type = HXQL_RES_LIST;
 
-			start = find_entry_by_addr(hx->memory, list_req.start_addr);
+			start = find_entry_by_addr(sh->hx->memory, list_req.start_addr);
 			if (!start) {
 				result->code = HX_ERR_NO_RECORD;
 				break;
@@ -376,7 +374,7 @@ hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *resu
 			which_result_t which_res = { 0 };
 			i = 0;
 			// check profile is not NULL
-			profile = hx->profile;
+			profile = sh->hx->profile;
 			which_res.cur_addr = which_req.cur_idx;
 			result->type = HXQL_RES_WHICH;
 
@@ -427,6 +425,111 @@ hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *resu
 
 			result->code = HX_OK;
 			memcpy(&result->data.go, &goto_res, sizeof(goto_res));
+			break;
+
+		case TOK_FIND:
+			search_req_t *search_req = &req->req_type.search_req;
+			search_result_t search_res = { 0 };
+			sparse_memory_t *mem = sh->hx->memory;
+			int32_t start_idx, scan_idx;
+			uint8_t found = 0;
+			uint8_t wrapped = 0;
+
+			result->type = HXQL_RES_FIND;
+
+			// determine where to begin scanning
+			if (search_req->is_next) {
+				// advance one past the last hit; wrap if at range end
+				if (sh->search.last_hit_idx < 0 ||
+					(uint32_t) sh->search.last_hit_idx >=
+						search_req->range_end_idx) {
+					start_idx = (int32_t) search_req->range_start_idx;
+					wrapped = 1;
+				} else {
+					start_idx = sh->search.last_hit_idx + 1;
+				}
+			} else {
+				start_idx = (int32_t) search_req->range_start_idx;
+			}
+
+			// we do two passes at most: start_idx..range_end, then
+			// range_start..start_idx-1 (wrap)
+			// a single flag tracks whether we have wrapped so we can stop and print
+			// the notice.
+			//
+			// cross-entry matches (pattern straddles two records) are not
+			// handled; patterns are matched entirely within a single entry's bytes[]
+			// known limitation; should be addressed in a future release
+
+			int32_t scan_end = (int32_t) search_req->range_end_idx;
+			int32_t wrap_end = start_idx - 1; // exclusive upper bound for wrap pass
+			int32_t pass = 0; // 0 = first pass, 1 = wrap pass
+
+			scan_idx = start_idx;
+
+			while (1) {
+				memory_entry_t *entry = &mem->entries[scan_idx];
+
+				// try to match pattern anywhere in this entry's bytes
+				if (entry->byte_count >= search_req->pattern_len) {
+					uint8_t bc = entry->byte_count;
+					uint8_t pl = search_req->pattern_len;
+					uint8_t lim = bc - pl;
+
+					for (uint8_t off = 0; off <= lim; off++) {
+						if (memcmp(&entry->bytes[off], search_req->pattern, pl) ==
+							0) {
+							search_res.hit_addr = entry->address + off;
+							search_res.found = 1;
+							search_res.wrapped = wrapped;
+							found = 1;
+							break;
+						}
+					}
+				}
+
+				if (found) {
+					break;
+				}
+
+				// advance scan_idx
+				if (scan_idx < scan_end) {
+					scan_idx++;
+				} else if (pass == 0) {
+					// end of first pass; start wrap pass if there's anything to wrap
+					if (wrap_end < (int32_t) search_req->range_start_idx) {
+						// started at range_start so there's nothing to wrap into
+						break;
+					}
+					scan_idx = (int32_t) search_req->range_start_idx;
+					scan_end = wrap_end;
+					wrapped = 1;
+					pass = 1;
+				} else {
+					// end of wrap pass; no match
+					break;
+				}
+			}
+
+			if (!found) {
+				search_res.found = 0;
+				result->code = HX_OK;
+				memcpy(&result->data.search, &search_res, sizeof(search_res));
+				// clear active search state on no match
+				sh->search.active = 0;
+				break;
+			}
+
+			// update persistent search state on sh
+			sh->search.active = 1;
+			sh->search.last_hit_idx = scan_idx;
+			sh->search.range_start_idx = search_req->range_start_idx;
+			sh->search.range_end_idx = search_req->range_end_idx;
+			sh->search.pattern_len = search_req->pattern_len;
+			memcpy(sh->search.pattern, search_req->pattern, search_req->pattern_len);
+
+			result->code = HX_OK;
+			memcpy(&result->data.search, &search_res, sizeof(search_res));
 			break;
 
 		default:

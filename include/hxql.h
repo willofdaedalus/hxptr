@@ -15,6 +15,7 @@ typedef enum {
 	HXQL_RES_INFO,
 	HXQL_RES_WHICH,
 	HXQL_RES_GOTO,
+	HXQL_RES_FIND,
 } HxqlResultType_t;
 
 typedef struct {
@@ -47,6 +48,12 @@ typedef struct {
 } status_result_t;
 
 typedef struct {
+	uint32_t hit_addr;
+	uint8_t found;
+	uint8_t wrapped;
+} search_result_t;
+
+typedef struct {
 	HxqlResultType_t type;
 	HxptrResult_t code;
 	char err[128];
@@ -56,6 +63,7 @@ typedef struct {
 		which_result_t which;
 		status_result_t status;
 		goto_result_t go;
+		search_result_t search;
 	} data;
 } hxql_result_t;
 
@@ -88,7 +96,7 @@ typedef struct {
 
 hxql_parser_t hxql_parse(hxsh_t *sh, const char *args);
 int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr);
-hxptr_error_t hxql_execute_cmd(hxptr_t *hx, hxsh_req_t *req, hxql_result_t *result);
+hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *result);
 memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr);
 
 #endif
