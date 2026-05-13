@@ -1,0 +1,10 @@
+mcu stm32f411ret arm-cortex-m4
+vendor STMicroelectronics
+
+# memory blocks
+memory flash        0x08000000 524288
+
+# regions within flash
+region vectors      0x08000000 0x080001ff protected
+region system       0x08000200 0x08003fff
+region application  0x08004000 0x0807ffff
