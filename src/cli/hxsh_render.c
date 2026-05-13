@@ -293,9 +293,5 @@ void search_render(hxql_result_t *result)
 		return;
 	}
 
-	if (res->wrapped) {
-		printf("end of entries; wrapping around\n");
-	}
-
 	printf("found at 0x%08x\n", res->hit_addr);
 }

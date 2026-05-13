@@ -13,98 +13,94 @@ hxptr_error_t find_handler(hxsh_t *sh, const char *args, void *out_data)
 	search_req_t req = { 0 };
 	hxql_parser_t parsed = { 0 };
 	char *cursor = (char *) args;
+	const char *hex;
+	size_t hex_len;
 
 	if (!sh) {
 		return hxptr_err(
-			HX_ERR_NULL, "%s:%d: search_handler(): sh is NULL", __FILE__, __LINE__);
+			HX_ERR_NULL, "%s:%d: find_handler(): sh is NULL", __FILE__, __LINE__);
 	}
-
 	if (!out_data) {
 		return hxptr_err(HX_ERR_INVALID_ARG,
-			"%s:%d: search_handler(): out_data is NULL", __FILE__, __LINE__);
+			"%s:%d: find_handler(): out_data is NULL", __FILE__, __LINE__);
 	}
-
 	if (!args || !*args) {
 		return hxptr_err(
-			HX_ERR_BAD_TOKEN, "search: expected a hex pattern, 'next' or 'prev'");
+			HX_ERR_BAD_TOKEN, "find: expected a hex pattern, 'next', or 'prev'");
 	}
 
-	// check for next or token pattern
 	len = get_token(cursor, tok, sizeof(tok));
 	if (len <= 0) {
 		return hxptr_err(
-			HX_ERR_BAD_TOKEN, "search: expected a hex pattern, 'next' or 'prev'");
+			HX_ERR_BAD_TOKEN, "find: expected a hex pattern, 'next', or 'prev'");
 	}
 
-	if (strcmp(tok, "next") == 0) {
+	if (strcmp(tok, "next") == 0 || strcmp(tok, "prev") == 0) {
 		if (!sh->search.active) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"search: no active search. run 'search <pattern>' first");
+				"find: no active search. run 'search <pattern>' first");
 		}
-		req.is_next = 1;
+		req.direction = (strcmp(tok, "next") == 0) ? SEARCH_NEXT : SEARCH_PREV;
 		req.pattern_len = sh->search.pattern_len;
 		req.range_start_idx = sh->search.range_start_idx;
 		req.range_end_idx = sh->search.range_end_idx;
 		memcpy(req.pattern, sh->search.pattern, sh->search.pattern_len);
 		memcpy(out_data, &req, sizeof(req));
-
 		return hxptr_ok();
 	}
 
-	// parse hex pattern
 	cursor += len;
 	tok_type = classify_token(tok, NULL, 0);
 
 	if (tok_type != TOK_HEX && tok_type != TOK_BARE_HEX && tok_type != TOK_DEC) {
 		return hxptr_err(HX_ERR_BAD_TOKEN,
-			"search: pattern must be a hex value (eg 0xDEADBEEF or DEADBEEF)");
+			"find: pattern must be a hex value (e.g. 0xDEADBEEF or DEADBEEF)");
 	}
 
-	const char *hex = tok;
+	hex = tok;
 	if (hex[0] == '0' && (hex[1] == 'x' || hex[1] == 'X')) {
 		hex += 2;
 	}
 
-	size_t hex_len = strlen(hex);
+	hex_len = strlen(hex);
 	if (hex_len == 0 || hex_len > (HXSH_SEARCH_MAX_PATTERN * 2)) {
-		return hxptr_err(HX_ERR_BAD_TOKEN, "search: pattern too long; max %d bytes",
+		return hxptr_err(HX_ERR_BAD_TOKEN, "find: pattern too long (max %d bytes)",
 			HXSH_SEARCH_MAX_PATTERN);
 	}
-
-	// hex string must be even length for clean byte decoding; no ambiguity
 	if (hex_len & 1) {
 		return hxptr_err(
-			HX_ERR_BAD_TOKEN, "search: pattern has an odd number of hex digits");
+			HX_ERR_BAD_TOKEN, "find: pattern has an odd number of hex digits");
 	}
 
 	req.pattern_len = (uint8_t) (hex_len / 2);
 	for (uint8_t i = 0; i < req.pattern_len; i++) {
+		// walk the string in pairs
 		char byte_str[3] = { hex[i * 2], hex[i * 2 + 1], '\0' };
 		req.pattern[i] = (uint8_t) strtoul(byte_str, NULL, 16);
 	}
 
-	// optional address expressions
-	// skip whitespace and check if anything remains
+	req.direction = SEARCH_FRESH;
+
 	while (isspace((unsigned char) *cursor)) {
 		cursor++;
 	}
 
 	if (*cursor != '\0') {
-		// delegate to hxql_parse for start or range resolution
 		parsed = hxql_parse(sh, cursor);
 		if (parsed.err != HX_OK) {
-			return hxptr_err(parsed.err, "search: bad address expression");
+			return hxptr_err(parsed.err, "find: bad address expression");
 		}
 		req.range_start_idx = (uint32_t) parsed.start_idx;
 		req.range_end_idx = parsed.has_range
 			? (uint32_t) parsed.end_idx
 			: (uint32_t) (sh->hx->memory->count - 1);
 	} else {
-		req.range_start_idx = sh->cur_entry;
+		// no address given: full range, scan starts from cur_entry in engine
+		req.range_start_idx = 0;
 		req.range_end_idx = sh->hx->memory->count - 1;
 	}
-	memcpy(out_data, &req, sizeof(req));
 
+	memcpy(out_data, &req, sizeof(req));
 	return hxptr_ok();
 }
 

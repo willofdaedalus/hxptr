@@ -1,21 +1,22 @@
 #ifndef SHELL_H
 #define SHELL_H
 
-#define PROMPT                  "(hxptr) "
-#define HXSH_SEARCH_MAX_PATTERN 0x10
-#define MIN_DISP_VALS           0x10
-#define HXQL_MAX_TOKENS         0x20
-#define HXQL_CMD_LEN            0x100
-#define HXQL_LIST_DEFAULT       0x0f
-#define INFO_PROF_MASK          (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
-#define WHICH_MASK              (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
+#define PROMPT            "(hxptr) "
+#define MIN_DISP_VALS     0x10
+#define HXQL_MAX_TOKENS   0x20
+#define HXQL_CMD_LEN      0x100
+#define HXQL_LIST_DEFAULT 0x0f
+#define INFO_PROF_MASK    (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
+#define WHICH_MASK        (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
 #define INFO_ALL_ARGS (TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
 #define UNUSED(x)     ((void) (x))
-#define ADDR_OF(entry) (sh->hx->memory->entries[(entry)].address)
-#define MAX(a, b)      ((a) > (b) ? (a) : (b))
+#define ADDR_OF(entry)          (sh->hx->memory->entries[(entry)].address)
+#define MAX(a, b)               ((a) > (b) ? (a) : (b))
 // calculates the difference between the current and the end
 // useful for resolving possible "list" commands that exceed the highest address
-#define DIFF_COUNT(v)  (sh->hx->stats->total_records - (v))
+#define DIFF_COUNT(v)           (sh->hx->stats->total_records - (v))
+
+#define HXSH_SEARCH_MAX_PATTERN 16
 
 #include "hxptr.h"
 #include <stdint.h>
@@ -68,6 +69,29 @@ typedef enum {
 	TOK_UNKNOWN = -1,
 } HxshTokenType_t;
 
+typedef enum {
+	SEARCH_FRESH = 0,
+	SEARCH_NEXT = 1,
+	SEARCH_PREV = 2,
+} SearchDirection_t;
+
+typedef struct {
+	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
+	uint8_t pattern_len;
+	uint32_t range_start_idx;
+	uint32_t range_end_idx;
+	SearchDirection_t direction;
+} search_req_t;
+
+typedef struct {
+	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
+	uint8_t pattern_len;
+	uint32_t range_start_idx;
+	uint32_t range_end_idx;
+	int32_t last_hit_idx; // entry index of last match; -1 if none yet
+	uint8_t active; // is there a live search in progress?
+} hxsh_search_t;
+
 typedef struct {
 	uint32_t start_addr;
 	uint32_t end_addr;
@@ -89,25 +113,6 @@ typedef struct {
 	uint32_t cur_idx;
 } which_req_t;
 
-
-typedef struct {
-	uint32_t range_start_idx;
-	uint32_t range_end_idx;
-	int32_t last_hit_idx;
-	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
-	uint8_t pattern_len;
-	uint8_t active;
-} hxsh_search_t;
-
-typedef struct {
-	uint32_t range_start_idx;
-	uint32_t range_end_idx;
-	int32_t last_hit_idx;
-	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
-	uint8_t pattern_len;
-	uint8_t is_next;
-} search_req_t;
-
 typedef struct {
 	HxshTokenType_t type;
 	union {
@@ -128,10 +133,10 @@ typedef struct {
 typedef struct {
 	hxptr_t *hx;
 	uint32_t cur_entry;
-	uint32_t search_addr; // last search position
+	uint32_t search_addr;
 	hxsh_search_t search;
 	char cmd[HXQL_CMD_LEN];
-	uint8_t running;
+	int running;
 } hxsh_t;
 
 hxsh_t *hxsh_init(hxptr_t *core);

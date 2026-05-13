@@ -1,14 +1,14 @@
 #ifndef HXQL_H
 #define HXQL_H
 
-#include "hxptr.h"
-#include "hxsh.h"
-
 // search deadbeef
 // goto 08000000
 // list 0x80000:0x80010
 // list 080000
 // list +15
+
+#include "hxptr.h"
+#include "hxsh.h"
 
 typedef enum {
 	HXQL_RES_LIST = 1,
@@ -50,7 +50,7 @@ typedef struct {
 typedef struct {
 	uint32_t hit_addr;
 	uint8_t found;
-	uint8_t wrapped;
+	uint8_t wrapped; // 1 = match was found after wrapping around
 } search_result_t;
 
 typedef struct {
@@ -96,6 +96,7 @@ typedef struct {
 
 hxql_parser_t hxql_parse(hxsh_t *sh, const char *args);
 int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr);
+// signature takes hxsh_t so the search case can update sh->search state
 hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *result);
 memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr);
 
