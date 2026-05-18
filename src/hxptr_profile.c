@@ -2,6 +2,7 @@
 #include "hxptr.h"
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -241,21 +242,16 @@ mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 			switch (res) {
 				case HX_ERR_PARSE_DEETS:
 					*err = hxptr_err(res,
-						"line %d: could not parse "
-						"details for directive %s",
-						linenum, directive);
+						"line %d: could not parse details for directive %s", linenum,
+						directive);
 					break;
 				case HX_ERR_PARSE_BAD_VALUE:
-					*err = hxptr_err(res,
-						"line %d: invalid value "
-						"passed for directive",
-						linenum);
+					*err = hxptr_err(
+						res, "line %d: invalid value passed for directive", linenum);
 					break;
 				case HX_ERR_PARSE_MEMORY:
 					*err = hxptr_err(res,
-						"line %d: invalid values for "
-						"memory directive",
-						linenum);
+						"line %d: invalid values for memory directive", linenum);
 					break;
 				case HX_ERR_PARSE_REGION:
 					*err = hxptr_err(
@@ -284,9 +280,7 @@ mcu_profile_t *mcu_profile_load(const char *path, hxptr_error_t *err)
 	if (prof->name[0] == '\0' || prof->mem_count == 0) {
 		// fprintf(stderr, "profile missing required fields\n");
 		res = HX_ERR_BAD_PROFILE;
-		*err = hxptr_err(res,
-			"profile missing required fields, name and "
-			"memory size");
+		*err = hxptr_err(res, "missing required fields, name and memory size");
 
 		goto fail;
 	}

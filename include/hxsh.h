@@ -1,13 +1,14 @@
 #ifndef SHELL_H
 #define SHELL_H
 
-#define PROMPT            "(hxptr) "
-#define MIN_DISP_VALS     0x10
-#define HXQL_MAX_TOKENS   0x20
-#define HXQL_CMD_LEN      0x100
-#define HXQL_LIST_DEFAULT 0x0f
-#define INFO_PROF_MASK    (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
-#define WHICH_MASK        (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
+#define PROMPT             "(hxptr) "
+#define MIN_DISP_VALS      0x10
+#define HXQL_MAX_TOKENS    0x20
+#define HXQL_CMD_LEN       0x100
+#define HXQL_LIST_DEFAULT  0x0f
+#define INFO_PROF_MASK     (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
+#define WHICH_MASK         (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
+#define ARRAY_COUNT(array) (sizeof((array)) / sizeof((array)[0]))
 #define INFO_ALL_ARGS (TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
 #define UNUSED(x)     ((void) (x))
 #define ADDR_OF(entry)          (sh->hx->memory->entries[(entry)].address)
@@ -40,8 +41,7 @@ typedef enum {
 	TOK_LIST,
 	TOK_HELP,
 	TOK_QUIT,
-	TOK_NEXT,
-	TOK_PREV,
+	TOK_LOAD,
 
 	// "which" cmd types
 	TOK_WH_ADDR = (1 << 5),
@@ -55,6 +55,9 @@ typedef enum {
 	TOK_NUMBER,
 	TOK_BARE_HEX,
 	TOK_DEC,
+	TOK_NEXT,
+	TOK_PREV,
+	TOK_FILE,
 
 	// address expression base types
 	TOK_START,

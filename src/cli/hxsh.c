@@ -17,6 +17,7 @@ static const token_map_t token_map[] = {
 	{ "list",  TOK_LIST  },
 	{ "help",  TOK_HELP  },
 	{ "quit",  TOK_QUIT  },
+	{ "load",  TOK_LOAD  },
 };
 static const size_t map_count = sizeof(token_map) / sizeof(token_map[0]);
 
@@ -85,11 +86,15 @@ hxptr_error_t hxsh_repl(hxsh_t *sh, FILE *input)
 			sh->running = 0;
 			goto quit_handler;
 			break;
+		case TOK_LOAD:
+			err = load_handler(sh, p, NULL);
+			goto early_exit;
+			break;
 		case TOK_HELP:
 			break;
 	}
 	if (err.code != HX_OK) {
-		return err;
+		goto early_exit;
 	}
 
 	err = hxql_execute_cmd(sh, &req, &result);
@@ -101,6 +106,9 @@ hxptr_error_t hxsh_repl(hxsh_t *sh, FILE *input)
 
 quit_handler:
 	return hxptr_ok();
+
+early_exit:
+	return err;
 }
 
 hxsh_t *hxsh_init(hxptr_t *core)

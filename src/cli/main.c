@@ -43,8 +43,8 @@ static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 
 static void display_no_prof_warning(void)
 {
-	printf("No profile loaded. Rerun hxptr with -p flag and the path to your "
-		   "MCU's profile\n");
+	printf("no profile loaded. rerun hxptr with -p flag and the path to your "
+		   "mcu's profile\n");
 }
 
 int main(int ac, char **av)
