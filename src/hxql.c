@@ -20,6 +20,7 @@ static int expr_token_count = sizeof(expr_tokens) / sizeof(expr_tokens[0]);
 static inline int32_t find_entry_idx_by_addr(sparse_memory_t *memory, uint32_t addr)
 {
 	uint32_t lo, hi, mid;
+	memory_entry_t *mem;
 
 	if (!memory || memory->count == 0) {
 		return -1;
@@ -30,10 +31,11 @@ static inline int32_t find_entry_idx_by_addr(sparse_memory_t *memory, uint32_t a
 
 	while (lo < hi) {
 		mid = lo + (hi - lo) / 2;
-		if (memory->entries[mid].address < addr) {
-			lo = mid + 1;
-		} else {
+		mem = &memory->entries[mid];
+		if ((mem->address + mem->byte_count) > addr) {
 			hi = mid;
+		} else {
+			lo = mid + 1;
 		}
 	}
 
