@@ -28,8 +28,7 @@ HxptrResult_t diag_append(hxptr_t *ctx, diagnostic_t *diag)
 	}
 
 	// append
-	memcpy(&ctx->reports->entries[ctx->reports->count], diag,
-		sizeof(diagnostic_t));
+	memcpy(&ctx->reports->entries[ctx->reports->count], diag, sizeof(diagnostic_t));
 	ctx->reports->count++;
 	// ctx->reports->entries[ctx->reports->count++] = *diag;
 

@@ -33,13 +33,12 @@ HxptrResult_t sm_append_record(
 
 	// check and double the capacity when necessary
 	if (mem->count >= mem->cap) {
-		mem->cap *= 2;
-		temp = realloc(mem->entries, mem->cap * sizeof(memory_entry_t));
+		size_t new_cap = mem->cap ? mem->cap * 2 : 1;
+		temp = realloc(mem->entries, new_cap * sizeof(memory_entry_t));
 		if (!temp) {
-			// TODO; make sure to free this from the caller side of
-			// things
 			return HX_ERR_BAD_ALLOC;
 		}
+		mem->cap = new_cap;
 		mem->entries = temp;
 	}
 
