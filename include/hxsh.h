@@ -6,6 +6,7 @@
 #define HXQL_MAX_TOKENS    0x20
 #define HXQL_CMD_LEN       0x100
 #define HXQL_LIST_DEFAULT  0x0f
+#define CMD_MAX            0x80
 #define INFO_PROF_MASK     (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
 #define WHICH_MASK         (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
 #define ARRAY_COUNT(array) (sizeof((array)) / sizeof((array)[0]))
@@ -22,6 +23,8 @@
 #include "hxptr.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <termios.h>
+#include <unistd.h>
 
 typedef hxptr_error_t (*cmd_handler)(const char *args, void *out_data);
 
@@ -140,10 +143,11 @@ typedef struct {
 	hxsh_search_t search;
 	char cmd[HXQL_CMD_LEN];
 	int running;
+	struct termios orig_termios;
 } hxsh_t;
 
 hxsh_t *hxsh_init(hxptr_t *core);
-hxptr_error_t hxsh_repl(hxsh_t *sh, FILE *input);
+hxptr_error_t hxsh_repl(hxsh_t *sh);
 void hxsh_free(hxsh_t *hx);
 
 #endif

@@ -119,7 +119,7 @@ int main(int ac, char **av)
 	}
 
 	while (sh->running) {
-		err = hxsh_repl(sh, stdin);
+		err = hxsh_repl(sh);
 		if (err.code != HX_OK) {
 			fprintf(stderr, "%s\n", err.msg);
 		}

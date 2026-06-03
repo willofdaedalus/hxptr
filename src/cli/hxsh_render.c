@@ -165,7 +165,7 @@ void list_render(hxql_result_t *result)
 	table_set_headers(&t, headers, 2);
 	const uint8_t widths[] = { 10, data_width };
 	table_set_widths(&t, widths, 2);
-	table_print_header(&t, "list entries");
+	table_print_header(&t, "\rlist entries");
 
 	for (uint16_t i = 0; i < res.count; i++) {
 		memory_entry_t *entry = &res.start[i];
