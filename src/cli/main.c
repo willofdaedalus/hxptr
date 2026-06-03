@@ -41,12 +41,6 @@ static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 	return HX_OK;
 }
 
-static void display_no_prof_warning(void)
-{
-	printf("no profile loaded. rerun hxptr with -p flag and the path to your "
-		   "mcu's profile\n");
-}
-
 int main(int ac, char **av)
 {
 	hxptr_error_t err;
@@ -120,8 +114,10 @@ int main(int ac, char **av)
 	}
 
 	if (!hx->profile) {
-		display_no_prof_warning();
+		printf("no profile loaded. rerun hxptr with -p flag and the path to your "
+			   "mcu's profile\n");
 	}
+
 	while (sh->running) {
 		err = hxsh_repl(sh, stdin);
 		if (err.code != HX_OK) {

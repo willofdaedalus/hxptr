@@ -499,16 +499,15 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 	memory_entry_t *start;
 
 	switch (req->type) {
-		case TOK_INFO: {
+		case TOK_INFO:
 			info_result_t info_res = { 0 };
 			result->type = HXQL_RES_INFO;
 			info_executor(hx, req->req_type.info_req, &info_res);
 			result->code = HX_OK;
 			memcpy(&result->data.info, &info_res, sizeof(info_res));
 			break;
-		}
 
-		case TOK_LIST: {
+		case TOK_LIST:
 			list_req_t *list_req = &req->req_type.list_req;
 			list_result_t list_res = { 0 };
 			result->type = HXQL_RES_LIST;
@@ -524,33 +523,28 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 			result->code = HX_OK;
 			memcpy(&result->data.list, &list_res, sizeof(list_res));
 			break;
-		}
 
-		case TOK_WHICH: {
+		case TOK_WHICH:
 			which_result_t which_res = { 0 };
 			result->type = HXQL_RES_WHICH;
 			which_executor(hx, &req->req_type.which_req, &which_res);
 			result->code = HX_OK;
 			memcpy(&result->data.which, &which_res, sizeof(which_res));
-			break;
-		}
 
-		case TOK_GOTO: {
+		case TOK_GOTO:
 			goto_result_t goto_res = { 0 };
 			result->type = HXQL_RES_GOTO;
 			goto_executor(NULL, &req->req_type.goto_req, &goto_res);
 			result->code = HX_OK;
 			memcpy(&result->data.go, &goto_res, sizeof(goto_res));
 			break;
-		}
 
-		case TOK_FIND: {
+		case TOK_FIND:
 			search_result_t search_res = { 0 };
 			result->type = HXQL_RES_FIND;
 			search_executor(sh, &req->req_type.search_req, &search_res, result);
 			memcpy(&result->data.search, &search_res, sizeof(search_res));
 			break;
-		}
 
 		default:
 			break;

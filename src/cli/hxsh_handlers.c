@@ -252,7 +252,7 @@ hxptr_error_t which_handler(hxsh_t *sh, const char *args, void *out_data)
 		if (!sh->hx->profile) {
 			return hxptr_err(HX_ERR_BAD_PROFILE,
 				"unable to load region/memory information; no profile "
-				"loaded. restart hxptr and load a profile with -p flag");
+				"loaded. load a profile with 'load profile <profile>'");
 		}
 		req.args = WHICH_MASK;
 	} else {
@@ -319,6 +319,10 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	parsed = hxql_parse(sh, args);
 	if (parsed.err != HX_OK) {
+		if (!sh->hx->profile) {
+			return hxptr_err(
+				parsed.err, "list: no profile loaded for this operation");
+		}
 		return hxptr_err(parsed.err,
 			"list: region/memory is outside the bounds of the hex map. skipping");
 	}
@@ -366,6 +370,10 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	parsed = hxql_parse(sh, args);
 	if (parsed.err != HX_OK) {
+		if (!sh->hx->profile) {
+			return hxptr_err(
+				parsed.err, "list: no profile loaded for this operation");
+		}
 		return hxptr_err(parsed.err,
 			"goto: region/memory is outside the bounds of the hex map. skipping");
 	}

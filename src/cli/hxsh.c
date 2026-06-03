@@ -130,7 +130,7 @@ hxsh_t *hxsh_init(hxptr_t *core)
 
 	printf("\033[2J");
 	printf("\033[H");
-	printf("\033[?1049h");
+	// printf("\033[?1049h");
 
 	return hx;
 }
@@ -141,7 +141,7 @@ void hxsh_free(hxsh_t *hx)
 		return;
 	}
 
-	printf("\033[?1049l");
+	// printf("\033[?1049l");
 	printf("\033[2J");
 	printf("\033[H");
 	free(hx);
