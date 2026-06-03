@@ -336,268 +336,218 @@ static int search_entry(
 	return -1;
 }
 
+static inline void info_executor(
+	hxptr_t *hx, info_req_t info_req, info_result_t *info_res)
+{
+	if (info_req.args & TOK_STATS) {
+		info_res->stats = hx->stats;
+		info_res->args |= TOK_STATS;
+	}
+
+	if (info_req.args & INFO_PROF_MASK) {
+		info_res->profile = hx->profile;
+		info_res->args |= (info_req.args & INFO_PROF_MASK);
+	}
+
+	if (info_req.args & TOK_DIAG) {
+		info_res->diagnostics = hx->reports->entries;
+		info_res->args |= TOK_DIAG;
+	}
+}
+
+static void which_executor(hxptr_t *hx, which_req_t *req, which_result_t *res)
+{
+	uint8_t i = 0;
+	mcu_profile_t *profile = hx->profile;
+	profile_region_t *region;
+	profile_memory_t *memory;
+	res->cur_addr = req->cur_idx;
+
+	if (req->args & TOK_WH_REGION) {
+		strncpy(res->region, "no region found", (MAX_OBJ_LEN * 2) - 1);
+
+		while (i < profile->region_count) {
+			region = &profile->regions[i];
+			if (req->cur_idx >= region->start && req->cur_idx <= region->end) {
+				strncpy(res->region, region->name, (MAX_OBJ_LEN * 2) - 1);
+				break;
+			}
+			i++;
+		}
+	}
+
+	i = 0;
+	if (req->args & TOK_WH_MEMORY) {
+		strncpy(res->memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
+
+		while (i < profile->mem_count) {
+			memory = &profile->mem_blocks[i];
+			if (req->cur_idx >= memory->start &&
+				req->cur_idx <= memory->start + memory->size) {
+				strncpy(res->memory, memory->type, (MAX_OBJ_LEN * 2) - 1);
+				break;
+			}
+			i++;
+		}
+	}
+
+	res->args = req->args;
+}
+
+static inline void goto_executor(hxptr_t *hx, goto_req_t *req, goto_result_t *res)
+{
+	UNUSED(hx);
+	res->addr = req->addr;
+	res->found = 1;
+}
+
+static void search_executor(
+	hxsh_t *sh, search_req_t *req, search_result_t *res, hxql_result_t *result)
+{
+	sparse_memory_t *mem = sh->hx->memory;
+	int32_t scan_start, scan_idx, hit_off;
+	int32_t range_start = (int32_t) req->range_start_idx;
+	int32_t range_end = (int32_t) req->range_end_idx;
+	uint8_t wrapped = 0;
+
+	// determine scan_start and initial wrapped flag
+	switch (req->direction) {
+		case SEARCH_NEXT:
+			if (sh->search.last_hit_idx < 0 ||
+				sh->search.last_hit_idx >= range_end) {
+				scan_start = range_start;
+				wrapped = 1;
+			} else {
+				scan_start = sh->search.last_hit_idx + 1;
+			}
+			break;
+
+		case SEARCH_PREV:
+			if (sh->search.last_hit_idx <= range_start) {
+				scan_start = range_end;
+				wrapped = 1;
+			} else {
+				scan_start = sh->search.last_hit_idx - 1;
+			}
+			break;
+
+		case SEARCH_FRESH:
+			__attribute__((fallthrough));
+		default:
+			scan_start = (int32_t) sh->cur_entry;
+			if (scan_start < range_start || scan_start > range_end) {
+				scan_start = range_start;
+			}
+			break;
+	}
+
+	// scan two segments: [scan_start .. far_end], then wrap [wrap_start ..
+	// scan_start-step] for PREV the direction is reversed; segments are symmetric
+	int32_t step = (req->direction == SEARCH_PREV) ? -1 : 1;
+	int32_t seg1_end = (req->direction == SEARCH_PREV) ? range_start : range_end;
+	int32_t seg2_start = (req->direction == SEARCH_PREV) ? range_end : range_start;
+	int32_t seg2_end = scan_start - step; // exclusive stop for wrap segment
+
+	scan_idx = scan_start;
+	while (1) {
+		hit_off =
+			search_entry(&mem->entries[scan_idx], req->pattern, req->pattern_len);
+
+		if (hit_off >= 0) {
+			res->hit_addr = mem->entries[scan_idx].address + (uint32_t) hit_off;
+			res->found = 1;
+			res->wrapped = wrapped;
+
+			sh->search.active = 1;
+			sh->search.last_hit_idx = scan_idx;
+			sh->search.range_start_idx = (uint32_t) range_start;
+			sh->search.range_end_idx = (uint32_t) range_end;
+			sh->search.pattern_len = req->pattern_len;
+			memcpy(sh->search.pattern, req->pattern, req->pattern_len);
+			result->code = HX_OK;
+			return;
+		}
+
+		if (scan_idx != seg1_end) {
+			scan_idx += step;
+		} else if (!wrapped && scan_start != seg2_start) {
+			// transition to wrap segment
+			scan_idx = seg2_start;
+			wrapped = 1;
+		} else {
+			break;
+		}
+
+		// stop wrap segment before we re-visit scan_start
+		if (wrapped && scan_idx == seg2_end + step) {
+			break;
+		}
+	}
+
+	// nothing found
+	res->found = 0;
+	sh->search.active = 0;
+	result->code = HX_OK;
+	memcpy(&result->data.search, res, sizeof(search_result_t));
+}
+
+
 // hxql_execute_cmd
 hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *result)
 {
 	hxptr_t *hx = sh->hx;
 	memory_entry_t *start;
-	mcu_profile_t *profile;
-	profile_region_t *region;
-	profile_memory_t *memory;
-	uint8_t i;
 
 	switch (req->type) {
-		case TOK_INFO:
-			info_req_t info_req = req->req_type.info_req;
+		case TOK_INFO: {
 			info_result_t info_res = { 0 };
 			result->type = HXQL_RES_INFO;
-
-			if (info_req.args & TOK_STATS) {
-				info_res.stats = hx->stats;
-				info_res.args |= TOK_STATS;
-			}
-
-			if (info_req.args & INFO_PROF_MASK) {
-				info_res.profile = hx->profile ? hx->profile : NULL;
-				info_res.args |= (info_req.args & INFO_PROF_MASK);
-			}
-
-			if (info_req.args & TOK_DIAG) {
-				info_res.diagnostics = hx->reports->entries;
-				info_res.args |= TOK_DIAG;
-			}
-
+			info_executor(hx, req->req_type.info_req, &info_res);
 			result->code = HX_OK;
 			memcpy(&result->data.info, &info_res, sizeof(info_res));
 			break;
+		}
 
-		case TOK_LIST:
-			list_req_t list_req = req->req_type.list_req;
+		case TOK_LIST: {
+			list_req_t *list_req = &req->req_type.list_req;
 			list_result_t list_res = { 0 };
 			result->type = HXQL_RES_LIST;
 
-			start = find_entry_by_addr(hx->memory, list_req.start_addr);
+			start = find_entry_by_addr(hx->memory, list_req->start_addr);
 			if (!start) {
 				result->code = HX_ERR_NO_RECORD;
 				break;
 			}
 
 			list_res.start = start;
-			list_res.count = list_req.count;
-
+			list_res.count = list_req->count;
 			result->code = HX_OK;
 			memcpy(&result->data.list, &list_res, sizeof(list_res));
 			break;
+		}
 
-		case TOK_WHICH:
-			which_req_t which_req = req->req_type.which_req;
+		case TOK_WHICH: {
 			which_result_t which_res = { 0 };
-			i = 0;
-			profile = hx->profile;
-			which_res.cur_addr = which_req.cur_idx;
 			result->type = HXQL_RES_WHICH;
-
-			if (which_req.args & TOK_WH_REGION) {
-				strncpy(which_res.region, "no region found", (MAX_OBJ_LEN * 2) - 1);
-
-				while (i < profile->region_count) {
-					region = &profile->regions[i];
-					if (which_req.cur_idx >= region->start &&
-						which_req.cur_idx <= region->end) {
-						strncpy(
-							which_res.region, region->name, (MAX_OBJ_LEN * 2) - 1);
-						break;
-					}
-					i++;
-				}
-			}
-
-			i = 0;
-			if (which_req.args & TOK_WH_MEMORY) {
-				strncpy(which_res.memory, "no memory found", (MAX_OBJ_LEN * 2) - 1);
-
-				while (i < profile->mem_count) {
-					memory = &profile->mem_blocks[i];
-					if (which_req.cur_idx >= memory->start &&
-						which_req.cur_idx <= memory->start + memory->size) {
-						strncpy(
-							which_res.memory, memory->type, (MAX_OBJ_LEN * 2) - 1);
-						break;
-					}
-					i++;
-				}
-			}
-
-			which_res.args = which_req.args;
+			which_executor(hx, &req->req_type.which_req, &which_res);
 			result->code = HX_OK;
 			memcpy(&result->data.which, &which_res, sizeof(which_res));
 			break;
+		}
 
-		case TOK_GOTO:
-			goto_req_t *goto_req = &req->req_type.goto_req;
+		case TOK_GOTO: {
 			goto_result_t goto_res = { 0 };
 			result->type = HXQL_RES_GOTO;
-
-			goto_res.addr = goto_req->addr;
-			goto_res.found = 1;
-
+			goto_executor(NULL, &req->req_type.goto_req, &goto_res);
 			result->code = HX_OK;
 			memcpy(&result->data.go, &goto_res, sizeof(goto_res));
 			break;
+		}
 
 		case TOK_FIND: {
-			search_req_t *search_req = &req->req_type.search_req;
 			search_result_t search_res = { 0 };
-			sparse_memory_t *mem = hx->memory;
-			int32_t scan_start;
-			int32_t scan_idx;
-			int32_t range_start = (int32_t) search_req->range_start_idx;
-			int32_t range_end = (int32_t) search_req->range_end_idx;
-			int hit_off;
-			uint8_t found = 0;
-			uint8_t wrapped = 0;
-
 			result->type = HXQL_RES_FIND;
-
-			// determine scan start index based on direction
-			switch (search_req->direction) {
-				case SEARCH_NEXT:
-					if (sh->search.last_hit_idx < 0 ||
-						sh->search.last_hit_idx >= range_end) {
-						// already at or past range end; wrap immediately
-						scan_start = range_start;
-						wrapped = 1;
-					} else {
-						scan_start = sh->search.last_hit_idx + 1;
-					}
-					break;
-
-				case SEARCH_PREV:
-					if (sh->search.last_hit_idx <= range_start) {
-						// already at or before range start; wrap immediately
-						scan_start = range_end;
-						wrapped = 1;
-					} else {
-						scan_start = sh->search.last_hit_idx - 1;
-					}
-					break;
-
-				case SEARCH_FRESH:
-				default:
-					// start from cur_entry; scan_start is clamped to range bounds
-					scan_start = (int32_t) sh->cur_entry;
-					if (scan_start < range_start) {
-						scan_start = range_start;
-					}
-					if (scan_start > range_end) {
-						scan_start = range_start;
-					}
-					break;
-			}
-
-			// ---------------------------------------------------------------
-			// two-pass scan
-			//
-			// forward (FRESH / NEXT):
-			//   pass 0: scan_start .. range_end
-			//   pass 1: range_start .. scan_start - 1  (wrap)
-			//
-			// backward (PREV):
-			//   pass 0: scan_start .. range_start  (stepping -1)
-			//   pass 1: range_end  .. scan_start + 1  (wrap, stepping -1)
-			//
-			// a match on pass 1 sets wrapped = 1 in the result.
-			// ---------------------------------------------------------------
-
-			int32_t pass_end; // inclusive bound for the current pass
-			int pass = 0;
-
-			if (search_req->direction == SEARCH_PREV) {
-				scan_idx = scan_start;
-				pass_end = range_start;
-
-				while (1) {
-					hit_off = search_entry(&mem->entries[scan_idx],
-						search_req->pattern, search_req->pattern_len);
-
-					if (hit_off >= 0) {
-						search_res.hit_addr =
-							mem->entries[scan_idx].address + (uint32_t) hit_off;
-						search_res.found = 1;
-						search_res.wrapped = wrapped;
-						found = 1;
-						break;
-					}
-
-					if (scan_idx > pass_end) {
-						scan_idx--;
-					} else if (pass == 0) {
-						// end of first pass; start wrap pass
-						if (scan_start >= range_end) {
-							// started at range_end; nothing new to wrap into
-							break;
-						}
-						scan_idx = range_end;
-						pass_end = scan_start + 1;
-						wrapped = 1;
-						pass = 1;
-					} else {
-						break;
-					}
-				}
-			} else {
-				// SEARCH_FRESH and SEARCH_NEXT both scan forward
-				scan_idx = scan_start;
-				pass_end = range_end;
-
-				while (1) {
-					hit_off = search_entry(&mem->entries[scan_idx],
-						search_req->pattern, search_req->pattern_len);
-
-					if (hit_off >= 0) {
-						search_res.hit_addr =
-							mem->entries[scan_idx].address + (uint32_t) hit_off;
-						search_res.found = 1;
-						search_res.wrapped = wrapped;
-						found = 1;
-						break;
-					}
-
-					if (scan_idx < pass_end) {
-						scan_idx++;
-					} else if (pass == 0) {
-						// end of first pass; start wrap pass
-						if (scan_start <= range_start) {
-							// started at range_start; nothing new to wrap into
-							break;
-						}
-						scan_idx = range_start;
-						pass_end = scan_start - 1;
-						wrapped = 1;
-						pass = 1;
-					} else {
-						break;
-					}
-				}
-			}
-
-			if (!found) {
-				search_res.found = 0;
-				result->code = HX_OK;
-				sh->search.active = 0;
-				memcpy(&result->data.search, &search_res, sizeof(search_res));
-				break;
-			}
-
-			// update persistent search state
-			sh->search.active = 1;
-			sh->search.last_hit_idx = scan_idx;
-			sh->search.range_start_idx = (uint32_t) range_start;
-			sh->search.range_end_idx = (uint32_t) range_end;
-			sh->search.pattern_len = search_req->pattern_len;
-			memcpy(sh->search.pattern, search_req->pattern, search_req->pattern_len);
-
-			result->code = HX_OK;
+			search_executor(sh, &req->req_type.search_req, &search_res, result);
 			memcpy(&result->data.search, &search_res, sizeof(search_res));
 			break;
 		}
