@@ -423,3 +423,107 @@ hxptr_error_t hxptr_ok(void)
 {
 	return (hxptr_error_t) { "42", HX_OK };
 }
+
+// hxptr_reset_profile
+//
+// replaces the current profile with a freshly loaded one.
+// the old profile is freed only after the new one is confirmed good,
+// so a failed load leaves the existing profile intact.
+hxptr_error_t hxptr_reset_profile(hxptr_t *ctx, const char *path)
+{
+	hxptr_error_t err = { 0 };
+	mcu_profile_t *new_profile;
+
+	if (!ctx || !path) {
+		return hxptr_err(HX_ERR_NULL, hxptr_strerror(HX_ERR_NULL));
+	}
+
+	new_profile = mcu_profile_load(path, &err);
+	if (!new_profile) {
+		return err;
+	}
+
+	// only swap after confirmed success; old profile survives a bad load
+	mcu_profile_free(ctx->profile);
+	ctx->profile = new_profile;
+
+	return hxptr_ok();
+}
+
+// hxptr_reset_file
+//
+// replaces the current hex file state with a fresh load.
+// all new allocations are validated before the old state is touched,
+// so a failed load leaves the context in a consistent (if stale) state.
+hxptr_error_t hxptr_reset_file(hxptr_t *ctx, const char *path)
+{
+	hxptr_error_t err = { 0 };
+	sparse_memory_t *new_mem;
+	reports_t *new_reports;
+	hxptr_stats_t *new_stats;
+
+	if (!ctx || !path) {
+		return hxptr_err(HX_ERR_NULL, hxptr_strerror(HX_ERR_NULL));
+	}
+
+	new_mem = sm_init();
+	if (!new_mem) {
+		return hxptr_err(HX_ERR_BAD_ALLOC, hxptr_strerror(HX_ERR_BAD_ALLOC));
+	}
+
+	new_reports = reports_init();
+	if (!new_reports) {
+		sm_free(new_mem);
+		return hxptr_err(HX_ERR_BAD_ALLOC, hxptr_strerror(HX_ERR_BAD_ALLOC));
+	}
+
+	new_stats = calloc(1, sizeof(hxptr_stats_t));
+	if (!new_stats) {
+		sm_free(new_mem);
+		reports_free(new_reports);
+		return hxptr_err(HX_ERR_BAD_ALLOC, hxptr_strerror(HX_ERR_BAD_ALLOC));
+	}
+	new_stats->addr_lowest = UINT32_MAX;
+
+	// stash old state, swap in new stores
+	sparse_memory_t *old_mem = ctx->memory;
+	reports_t *old_reports = ctx->reports;
+	hxptr_stats_t *old_stats = ctx->stats;
+	char *old_filename = ctx->filename;
+
+	ctx->memory = new_mem;
+	ctx->reports = new_reports;
+	ctx->stats = new_stats;
+	ctx->filename = NULL;
+
+	err = hxptr_load_file(ctx, path);
+	if (err.code != HX_OK) {
+		goto restore;
+	}
+
+	err = hxptr_finalize_memory(ctx);
+	if (err.code != HX_OK) {
+		goto restore;
+	}
+
+	// drop the old state
+	sm_free(old_mem);
+	reports_free(old_reports);
+	free(old_stats);
+	free(old_filename);
+
+	return hxptr_ok();
+
+restore:
+	sm_free(ctx->memory);
+	reports_free(ctx->reports);
+	free(ctx->stats);
+	free(ctx->filename);
+
+	ctx->memory = old_mem;
+	ctx->reports = old_reports;
+	ctx->stats = old_stats;
+	ctx->filename = old_filename;
+
+	return err;
+}

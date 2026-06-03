@@ -169,6 +169,8 @@ typedef struct {
 hxptr_t *hxptr_init(void);
 hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path);
 void hxptr_free(hxptr_t *ctx);
+hxptr_error_t hxptr_reset_profile(hxptr_t *ctx, const char *path);
+hxptr_error_t hxptr_reset_file(hxptr_t *ctx, const char *path);
 
 // memory operations
 hxptr_error_t hxptr_finalize_memory(hxptr_t *ctx);

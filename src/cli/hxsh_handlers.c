@@ -1,6 +1,4 @@
 #include "hxsh_handlers.h"
-#include "hxptr_diagnostics.h"
-#include "hxptr_memory.h"
 #include "hxql.h"
 #include "hxsh_tokenizer.h"
 #include <ctype.h>
@@ -16,12 +14,11 @@ hxptr_error_t load_handler(hxsh_t *sh, const char *args, void *out_data)
 	int len;
 	char *cursor = (char *) args;
 	HxshTokenType_t tok_type;
-	mcu_profile_t *profile;
 	hxptr_error_t err;
 
 	token_map_t sub_cmds[] = {
 		{ "file",    TOK_FILE    },
-        { "profile", TOK_PROFILE }
+		{ "profile", TOK_PROFILE },
 	};
 
 	if (!sh) {
@@ -30,63 +27,45 @@ hxptr_error_t load_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	if (!args || !*args) {
-		return hxptr_err(
-			HX_ERR_BAD_TOKEN, "load: not clear what to load; profile or file");
+		return hxptr_err(HX_ERR_BAD_TOKEN, "load: expected 'file' or 'profile'");
 	}
 
 	len = get_token(cursor, tok, sizeof(tok));
 	if (len <= 0) {
-		return hxptr_err(
-			HX_ERR_BAD_TOKEN, "load: not clear what to load; profile or file");
+		return hxptr_err(HX_ERR_BAD_TOKEN, "load: expected 'file' or 'profile'");
 	}
 	cursor += len;
 
 	tok_type = classify_token(tok, sub_cmds, ARRAY_COUNT(sub_cmds));
 	if (tok_type != TOK_PROFILE && tok_type != TOK_FILE) {
 		return hxptr_err(HX_ERR_BAD_TOKEN,
-			"load: unknown argument to load '%s'\nrun help load for more info", tok);
+			"load: unknown subcommand '%s'; expected 'file' or 'profile'", tok);
+	}
+
+	len = get_token(cursor, path, sizeof(path));
+	if (len <= 0) {
+		return hxptr_err(HX_ERR_BAD_TOKEN, "load: expected a path after '%s'", tok);
 	}
 
 	if (tok_type == TOK_PROFILE) {
-		len = get_token(cursor, path, sizeof(path));
-		if (len <= 0) {
-			return hxptr_err(HX_ERR_BAD_TOKEN, "load: expected profile path");
+		err = hxptr_reset_profile(sh->hx, path);
+		if (err.code != HX_OK) {
+			return err;
 		}
-		cursor += len;
-
-		err = hxptr_load_profile(sh->hx, path);
+		printf("loaded profile '%s'\n", sh->hx->profile->name);
+	} else {
+		err = hxptr_reset_file(sh->hx, path);
 		if (err.code != HX_OK) {
 			return err;
 		}
 
-		printf("loaded new profile '%s'\n", sh->hx->profile->name);
-	} else if (tok_type == TOK_FILE) {
-		len = get_token(cursor, path, sizeof(path));
-		if (len <= 0) {
-			return hxptr_err(HX_ERR_BAD_TOKEN, "load: expected hex file path");
-		}
-		cursor += len;
+		// reset shell navigation state; new file, fresh start
+		sh->cur_entry = 0;
+		sh->search.active = 0;
+		sh->search.last_hit_idx = -1;
 
-		if (sh->hx->memory) {
-			free(sh->hx->stats);
-			free(sh->hx->filename);
-			sm_free(sh->hx->memory);
-			reports_free(sh->hx->reports);
-		}
-
-		err = hxptr_load_file(sh->hx, path);
-		if (err.code != HX_OK) {
-			return err;
-		}
-
-		err = hxptr_finalize_memory(sh->hx);
-		if (err.code != HX_OK) {
-			return err;
-		}
-
-		printf("loaded new hex file '%s'\n", sh->hx->filename);
+		printf("loaded hex file '%s'\n", sh->hx->filename);
 	}
-
 
 	return hxptr_ok();
 }
