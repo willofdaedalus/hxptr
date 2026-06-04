@@ -530,6 +530,7 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 			which_executor(hx, &req->req_type.which_req, &which_res);
 			result->code = HX_OK;
 			memcpy(&result->data.which, &which_res, sizeof(which_res));
+			break;
 
 		case TOK_GOTO:
 			goto_result_t goto_res = { 0 };

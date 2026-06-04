@@ -111,8 +111,10 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	for (size_t i = 0; i < map_count; i++) {
 		if (strcmp(cmd, token_map[i].name) == 0) {
 			op = token_map[i].type;
+			break;
 		}
 	}
+
 	if (op == TOK_UNKNOWN) {
 		return hxptr_err(
 			HX_ERR_UNKNOWN_CMD, "unknown command '%s'. try 'help'", cmd);
