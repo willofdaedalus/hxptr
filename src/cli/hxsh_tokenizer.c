@@ -133,6 +133,9 @@ int get_token(char *input, char *out_tok, uint8_t toklen)
 		return 0;
 	}
 
+	// TODO; either drain the input to the next space and tell the user input is
+	// truncated OR
+	// return an error if the input is too long
 	while (input[i] && !isspace((unsigned char) input[i])) {
 		if (j < toklen - 1) {
 			out_tok[j++] = input[i++];

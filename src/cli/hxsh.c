@@ -2,6 +2,7 @@
 #include "hxql.h"
 #include "hxsh_handlers.h"
 #include "hxsh_render.h"
+#include "hxsh_table.h"
 #include "hxsh_tokenizer.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -330,21 +331,73 @@ hxptr_error_t hxsh_mark_rm(hxsh_t *sh, const char *mark)
 	return hxptr_err(HX_ERR_MARKS_404, "mark '%s' not found", mark);
 }
 
-hxptr_error_t hxsh_mark_list(hxsh_t *sh)
+hxptr_error_t hxsh_mark_find(hxsh_t *sh, const char *mark, uint32_t *out_addr)
 {
 	if (!sh) {
-		return hxptr_err(HX_ERR_NULL, "mark_list: sh is NULL");
+		return hxptr_err(HX_ERR_NULL, "mark_rm: sh is NULL");
+	}
+	if (!mark) {
+		return hxptr_err(HX_ERR_NULL, "mark_rm: mark is NULL");
 	}
 
 	uint32_t used = sh->mark_used;
 
 	while (used) {
 		uint32_t idx = __builtin_ctz(used);
-
-		printf("%-16s 0x%08x\n", sh->marks[idx].name, sh->marks[idx].addr);
-
+		if (strcmp(sh->marks[idx].name, mark) == 0) {
+			*out_addr = sh->marks[idx].addr;
+			return hxptr_ok();
+		}
 		used &= used - 1;
 	}
+
+	return hxptr_err(HX_ERR_MARKS_404, "mark '%s' not found", mark);
+}
+
+hxptr_error_t hxsh_mark_list(hxsh_t *sh)
+{
+	if (!sh) {
+		return hxptr_err(HX_ERR_NULL, "mark_list: sh is NULL");
+	}
+
+	hxsh_table_t t;
+	uint32_t used = sh->mark_used;
+	if (!used) {
+		printf("no marks set\n");
+		return hxptr_ok();
+	}
+
+	table_init(&t);
+
+	const char *headers[] = { "name", "address" };
+	table_set_headers(&t, headers, 2);
+
+	uint8_t name_w = strlen("name");
+	for (uint8_t i = 0; i < HXSH_MARKS_MAX; i++) {
+		if (!(sh->mark_used & (1U << i))) {
+			continue;
+		}
+
+		uint8_t nw = strlen(sh->marks[i].name);
+		if (nw > name_w) {
+			name_w = nw;
+		}
+	}
+
+	const uint8_t widths[] = { name_w, 10 };
+	table_set_widths(&t, widths, 4);
+	table_print_header(&t, "marks");
+
+	while (used) {
+		uint32_t idx = __builtin_ctz(used);
+		char addr[12];
+		snprintf(addr, sizeof(addr), "0x%08x", sh->marks[idx].addr);
+		const char *row[] = { sh->marks[idx].name, addr };
+		table_print_row(&t, row);
+		used &= used - 1;
+	}
+
+	table_print_separator(&t);
 
 	return hxptr_ok();
 }

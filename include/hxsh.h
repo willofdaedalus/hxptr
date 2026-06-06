@@ -76,6 +76,7 @@ typedef enum {
 	TOK_START,
 	TOK_END,
 	TOK_REGION_NAME,
+	TOK_MARK_NAME,
 
 	// meta
 	TOK_PLUS,
@@ -169,6 +170,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh);
 hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark);
 hxptr_error_t hxsh_mark_rm(hxsh_t *sh, const char *name);
 hxptr_error_t hxsh_mark_list(hxsh_t *sh);
+hxptr_error_t hxsh_mark_find(hxsh_t *sh, const char *mark, uint32_t *out_idx);
 hxsh_t hxsh_mark_rm_addr(hxsh_t *sh, uint32_t addr);
 void hxsh_free(hxsh_t *hx);
 
