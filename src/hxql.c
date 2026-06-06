@@ -241,7 +241,7 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 	HxshTokenType_t type;
 
 	if (!sh || !args) {
-		result.err = HX_ERR_NULL;
+		result.res = HX_ERR_NULL;
 		return result;
 	}
 
@@ -255,13 +255,13 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 		result.start_idx = sh->cur_entry;
 		result.end_idx = sh->cur_entry;
 		result.has_range = 0;
-		result.err = HX_OK;
+		result.res = HX_OK;
 		return result;
 	}
 
 	// parse lhs expression
 	if (parse_addr_expr(sh, &cursor, &lhs) != 0) {
-		result.err = HX_ERR_PARSE;
+		result.res = HX_ERR_PARSE;
 		return result;
 	}
 
@@ -274,14 +274,14 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 			cursor += len; // consume ':'
 
 			if (parse_addr_expr(sh, &cursor, &rhs) != 0) {
-				result.err = HX_ERR_PARSE;
+				result.res = HX_ERR_PARSE;
 				return result;
 			}
 
 			result.has_range = 1;
 		} else {
 			// unexpected token after a complete expression
-			result.err = HX_ERR_PARSE;
+			result.res = HX_ERR_PARSE;
 			return result;
 		}
 	}
@@ -289,20 +289,20 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 	// resolve lhs
 	result.start_idx = hxql_resolve_addr(sh, &lhs);
 	if (result.start_idx < 0) {
-		result.err = HX_ERR_OVERFLOW;
+		result.res = HX_ERR_OVERFLOW;
 		return result;
 	}
 
 	if (result.has_range) {
 		result.end_idx = hxql_resolve_addr(sh, &rhs);
 		if (result.end_idx < 0) {
-			result.err = HX_ERR_OVERFLOW;
+			result.res = HX_ERR_OVERFLOW;
 			return result;
 		}
 
 		// lhs must resolve strictly lower than rhs
 		if (result.start_idx >= result.end_idx) {
-			result.err = HX_ERR_PARSE;
+			result.res = HX_ERR_PARSE;
 			return result;
 		}
 
@@ -314,7 +314,7 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 			: DIFF_COUNT(result.start_idx);
 	}
 
-	result.err = HX_OK;
+	result.res = HX_OK;
 
 	return result;
 }

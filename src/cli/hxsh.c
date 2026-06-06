@@ -11,13 +11,14 @@
 // out_tok map
 static const token_map_t token_map[] = {
 	{ "info",  TOK_INFO  },
-	{ "find",  TOK_FIND  },
-	{ "goto",  TOK_GOTO  },
+    { "find",  TOK_FIND  },
+    { "goto",  TOK_GOTO  },
 	{ "which", TOK_WHICH },
-	{ "list",  TOK_LIST  },
-	{ "help",  TOK_HELP  },
+    { "list",  TOK_LIST  },
+    { "help",  TOK_HELP  },
 	{ "quit",  TOK_QUIT  },
-	{ "load",  TOK_LOAD  },
+    { "load",  TOK_LOAD  },
+    { "mark",  TOK_MARK  }
 };
 static const size_t map_count = sizeof(token_map) / sizeof(token_map[0]);
 
@@ -81,6 +82,17 @@ static int hxsh_readline_raw(char *buf, size_t buf_size)
 			if (len < buf_size - 1) {
 				buf[len++] = c;
 				write(STDOUT_FILENO, &c, 1);
+			} else {
+				// buffer full; drain remaining input on this line silently
+				while (c != '\n' && c != '\r') {
+					if (read(STDIN_FILENO, &c, 1) <= 0) {
+						break;
+					}
+				}
+				buf[len] = '\0';
+				printf("\n");
+				// return a distinct value so the repl can warn the user
+				return 2;
 			}
 		}
 	}
@@ -97,6 +109,10 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	if (eof) {
 		sh->running = 0;
 		return hxptr_ok();
+	}
+	if (eof == 2) {
+		return hxptr_err(
+			HX_ERR_BAD_TOKEN, "input too long; command truncated and ignored");
 	}
 
 	if (sh->cmd[0] == '\0') {
@@ -141,9 +157,13 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 		case TOK_GOTO:
 			err = goto_handler(sh, p, &req.req_type.goto_req);
 			break;
+		// shell level commands don't go through the executor
 		case TOK_QUIT:
 			sh->running = 0;
 			goto quit_handler;
+		case TOK_MARK:
+			err = mark_handler(sh, p, NULL);
+			goto early_exit;
 		case TOK_LOAD:
 			err = load_handler(sh, p, NULL);
 			goto early_exit;
@@ -179,7 +199,7 @@ static int make_raw(hxsh_t *hx)
 	raw = hx->orig_termios;
 
 	raw.c_lflag &= ~(ICANON | ECHO | IEXTEN); // char mode, no echo
-	// ISIG is left set to allow Ctrl+C/Ctrl+Z
+	// ISIG is left set to allow ctrl+c/ctrl+z
 
 	raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
 	// raw.c_oflag &= ~(OPOST);
@@ -235,4 +255,96 @@ void hxsh_free(hxsh_t *hx)
 	printf("\033[2J");
 	printf("\033[H");
 	free(hx);
+}
+
+static inline int mark_alloc(hxsh_t *sh)
+{
+	// check if all bits set; essentially all spaces are occupied
+	if (!sh || sh->mark_used == UINT32_MAX) {
+		return -1;
+	}
+
+	for (uint32_t i = 0; i < HXSH_MARKS_MAX; i++) {
+		if (!(sh->mark_used & (1U << i))) {
+			sh->mark_used |= (1U << i);
+			return (int) i;
+		}
+	}
+
+	return -1;
+}
+
+hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
+{
+	if (!sh || !mark) {
+		return hxptr_err(HX_ERR_NULL, "mark_add: NULL argument");
+	}
+
+	// reject duplicate names
+	uint32_t used = sh->mark_used;
+	while (used) {
+		uint32_t idx = __builtin_ctz(used);
+		if (strcmp(sh->marks[idx].name, mark->name) == 0) {
+			return hxptr_err(HX_ERR_MARKS_DUP,
+				"mark: '%s' already exists; remove it first or pick a different "
+				"name",
+				mark->name);
+		}
+		used &= used - 1;
+	}
+
+	int idx = mark_alloc(sh);
+	if (idx < 0) {
+		return hxptr_err(HX_ERR_MARKS_FULL,
+			"mark: reached total marks tracked of %d; remove a mark and try again",
+			HXSH_MARKS_MAX);
+	}
+	memcpy(&sh->marks[idx], mark, sizeof(hxsh_mark_t));
+	return hxptr_ok();
+}
+
+hxptr_error_t hxsh_mark_rm(hxsh_t *sh, const char *mark)
+{
+	if (!sh) {
+		return hxptr_err(HX_ERR_NULL, "mark_rm: sh is NULL");
+	}
+	if (!mark) {
+		return hxptr_err(HX_ERR_NULL, "mark_rm: mark is NULL");
+	}
+
+	uint32_t used = sh->mark_used;
+
+	while (used) {
+		uint32_t idx = __builtin_ctz(used);
+
+		if (strcmp(sh->marks[idx].name, mark) == 0) {
+			sh->mark_used &= ~(1U << idx);
+			sh->marks[idx] = (hxsh_mark_t) { 0 };
+
+			return hxptr_ok();
+		}
+
+		used &= used - 1;
+	}
+
+	return hxptr_err(HX_ERR_MARKS_404, "mark '%s' not found", mark);
+}
+
+hxptr_error_t hxsh_mark_list(hxsh_t *sh)
+{
+	if (!sh) {
+		return hxptr_err(HX_ERR_NULL, "mark_list: sh is NULL");
+	}
+
+	uint32_t used = sh->mark_used;
+
+	while (used) {
+		uint32_t idx = __builtin_ctz(used);
+
+		printf("%-16s 0x%08x\n", sh->marks[idx].name, sh->marks[idx].addr);
+
+		used &= used - 1;
+	}
+
+	return hxptr_ok();
 }

@@ -45,6 +45,9 @@ typedef enum {
 	HX_ERR_UNKNOWN_CMD = -51,
 	HX_ERR_INVALID_ARG = -52,
 	HX_ERR_BAD_TOKEN = -53,
+	HX_ERR_MARKS_FULL = -54,
+	HX_ERR_MARKS_404 = -55,
+	HX_ERR_MARKS_DUP = -56,
 } HxptrResult_t;
 
 typedef enum {

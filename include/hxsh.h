@@ -7,8 +7,12 @@
 #define HXQL_CMD_LEN       0x100
 #define HXQL_LIST_DEFAULT  0x0f
 #define CMD_MAX            0x80
+#define HXSH_MARKS_MAX     (0x20)
 #define INFO_PROF_MASK     (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
 #define WHICH_MASK         (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
+
+
+// helper macros
 #define ARRAY_COUNT(array) (sizeof((array)) / sizeof((array)[0]))
 #define INFO_ALL_ARGS (TOK_REGIONS | TOK_MEMORY | TOK_STATS | TOK_DIAG | TOK_PROFILE)
 #define UNUSED(x)     ((void) (x))
@@ -44,11 +48,18 @@ typedef enum {
 	TOK_HELP,
 	TOK_QUIT,
 	TOK_LOAD,
+	TOK_MARK,
 
 	// "which" cmd types
 	TOK_WH_ADDR = (1 << 5),
 	TOK_WH_REGION = (1 << 6),
 	TOK_WH_MEMORY = (1 << 7),
+
+
+	// "mark" cmd types
+	TOK_MK_LIST = (1 << 8),
+	TOK_MK_RM = (1 << 9),
+	TOK_MK_ADD = (1 << 10),
 
 	// argument types
 	TOK_HEX,
@@ -79,6 +90,11 @@ typedef enum {
 	SEARCH_NEXT = 1,
 	SEARCH_PREV = 2,
 } SearchDirection_t;
+
+typedef struct {
+	char name[MAX_OBJ_LEN];
+	uint32_t addr;
+} hxsh_mark_t;
 
 typedef struct {
 	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
@@ -136,17 +152,24 @@ typedef struct {
 } token_map_t;
 
 typedef struct {
+	hxsh_mark_t marks[HXSH_MARKS_MAX];
+	uint32_t mark_used;
+
 	hxptr_t *hx;
 	uint32_t cur_entry;
 	uint32_t search_addr;
 	hxsh_search_t search;
 	char cmd[HXQL_CMD_LEN];
-	int running;
+	int8_t running;
 	struct termios orig_termios;
 } hxsh_t;
 
 hxsh_t *hxsh_init(hxptr_t *core);
 hxptr_error_t hxsh_repl(hxsh_t *sh);
+hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark);
+hxptr_error_t hxsh_mark_rm(hxsh_t *sh, const char *name);
+hxptr_error_t hxsh_mark_list(hxsh_t *sh);
+hxsh_t hxsh_mark_rm_addr(hxsh_t *sh, uint32_t addr);
 void hxsh_free(hxsh_t *hx);
 
 #endif

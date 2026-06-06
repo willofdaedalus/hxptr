@@ -85,13 +85,13 @@ typedef struct {
 // end_idx is only valid when has_range is set.
 // count is the abs value of the offset when the expression was base +/- N.
 // for ranges, count is (end_idx - start_idx + 1); handlers can use either.
-// err is non-zero on any syntax or logic error.
+// res is non-zero on any syntax or logic error.
 typedef struct {
 	int32_t start_idx;
 	int32_t end_idx;
 	uint16_t count;
 	uint8_t has_range;
-	HxptrResult_t err;
+	HxptrResult_t res;
 } hxql_parser_t;
 
 hxql_parser_t hxql_parse(hxsh_t *sh, const char *args);

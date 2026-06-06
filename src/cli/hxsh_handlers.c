@@ -6,6 +6,75 @@
 #include <stdlib.h>
 #include <string.h>
 
+hxptr_error_t mark_handler(hxsh_t *sh, const char *args, void *out_data)
+{
+	char tok[64];
+	int len;
+	char *cursor = (char *) args;
+	HxshTokenType_t tok_type;
+	hxptr_error_t err;
+	hxql_parser_t parsed;
+	hxsh_mark_t mark = { 0 };
+
+	token_map_t sub_cmds[] = {
+		{ "add",  TOK_MK_ADD  },
+		{ "rm",   TOK_MK_RM   },
+		{ "list", TOK_MK_LIST },
+	};
+
+	if (!sh) {
+		return hxptr_err(
+			HX_ERR_NULL, "%s:%d: mark_handler(): sh is NULL", __FILE__, __LINE__);
+	}
+
+	if (!args || !*args) {
+		return hxptr_err(HX_ERR_BAD_TOKEN, "mark: expected 'add', 'rm' or 'list'");
+	}
+
+	len = get_token(cursor, tok, sizeof(tok));
+	if (len <= 0) {
+		return hxptr_err(HX_ERR_BAD_TOKEN, "mark: expected 'add', 'rm' or 'list'");
+	}
+	cursor += len;
+
+	tok_type = classify_token(tok, sub_cmds, ARRAY_COUNT(sub_cmds));
+	if (tok_type == TOK_MK_LIST) {
+		return hxsh_mark_list(sh);
+	} else if (tok_type == TOK_MK_ADD) {
+		len = get_token(cursor, mark.name, sizeof(mark.name));
+		if (len <= 0) {
+			return hxptr_err(
+				HX_ERR_BAD_TOKEN, "mark: expected name of marked address");
+		}
+		cursor += len;
+
+		parsed = hxql_parse(sh, cursor);
+		if (parsed.res != HX_OK) {
+			return hxptr_err(parsed.res, "mark: unknown error occured");
+		}
+		if (parsed.has_range) {
+			return hxptr_err(
+				parsed.res, "mark: no support for ranges; pass an address");
+		}
+
+		mark.addr = ADDR_OF(parsed.start_idx);
+
+		return hxsh_mark_add(sh, &mark);
+	} else if (tok_type == TOK_MK_RM) {
+		len = get_token(cursor, tok, sizeof(tok));
+		if (len <= 0) {
+			return hxptr_err(HX_ERR_BAD_TOKEN, "mark: expected name to remove");
+		}
+		return hxsh_mark_rm(sh, tok);
+	} else {
+		return hxptr_err(HX_ERR_BAD_TOKEN,
+			"mark: unknown subcommand '%s'; expected 'rm', 'add' or 'list'", tok);
+	}
+
+
+	return hxptr_ok();
+}
+
 hxptr_error_t load_handler(hxsh_t *sh, const char *args, void *out_data)
 {
 	UNUSED(out_data);
@@ -153,8 +222,8 @@ hxptr_error_t find_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	if (*cursor != '\0') {
 		parsed = hxql_parse(sh, cursor);
-		if (parsed.err != HX_OK) {
-			return hxptr_err(parsed.err, "find: bad address expression");
+		if (parsed.res != HX_OK) {
+			return hxptr_err(parsed.res, "find: bad address expression");
 		}
 		req.range_start_idx = (uint32_t) parsed.start_idx;
 		req.range_end_idx = parsed.has_range
@@ -319,12 +388,12 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	parsed = hxql_parse(sh, args);
-	if (parsed.err != HX_OK) {
+	if (parsed.res != HX_OK) {
 		if (!sh->hx->profile) {
 			return hxptr_err(
-				parsed.err, "list: no profile loaded for this operation");
+				parsed.res, "list: no profile loaded for this operation");
 		}
-		return hxptr_err(parsed.err,
+		return hxptr_err(parsed.res,
 			"list: region/memory is outside the bounds of the hex map. skipping");
 	}
 
@@ -370,12 +439,12 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	parsed = hxql_parse(sh, args);
-	if (parsed.err != HX_OK) {
+	if (parsed.res != HX_OK) {
 		if (!sh->hx->profile) {
 			return hxptr_err(
-				parsed.err, "list: no profile loaded for this operation");
+				parsed.res, "list: no profile loaded for this operation");
 		}
-		return hxptr_err(parsed.err,
+		return hxptr_err(parsed.res,
 			"goto: region/memory is outside the bounds of the hex map. skipping");
 	}
 
@@ -395,6 +464,9 @@ hxptr_error_t help_handler(hxsh_t *sh, const char *args, void *out_data)
 	UNUSED(sh);
 	UNUSED(args);
 	UNUSED(out_data);
+
+	printf("no work done on the help command btw but take your time; it's not like "
+		   "we're waiting or anything...");
 
 	return hxptr_ok();
 }
