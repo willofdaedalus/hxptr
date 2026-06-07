@@ -7,12 +7,13 @@
 // covers every symbol that can appear in an address expression
 static token_map_t expr_tokens[] = {
 	{ ".",      TOK_DOT         },
-	{ "+",      TOK_PLUS        },
-	{ "-",      TOK_MINUS       },
-	{ ":",      TOK_COLON       },
+    { "+",      TOK_PLUS        },
+    { "-",      TOK_MINUS       },
+    { ":",      TOK_COLON       },
 	{ "start",  TOK_START       },
-	{ "end",    TOK_END         },
-	{ "region", TOK_REGION_NAME },
+    { "end",    TOK_END         },
+    { "region", TOK_REGION_NAME },
+	{ "mark",   TOK_MARK_NAME   }
 };
 static int expr_token_count = sizeof(expr_tokens) / sizeof(expr_tokens[0]);
 
@@ -84,9 +85,8 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		return -1;
 	}
 
-	type = classify_token(tok, expr_tokens, expr_token_count);
-
 	// implicit dot: leading sign with no explicit base
+	type = classify_token(tok, expr_tokens, expr_token_count);
 	if (type == TOK_PLUS || type == TOK_MINUS) {
 		out->base = TOK_DOT;
 		// don't advance cursor; the sign is consumed below as the offset
@@ -116,6 +116,16 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		*cursor += len;
 		out->base = TOK_REGION_NAME;
 		strncpy(out->region, tok2, sizeof(out->region) - 1);
+		out->region[sizeof(out->region)] = '\0';
+	} else if (type == TOK_MARK_NAME) {
+		len = get_token(*cursor, tok2, sizeof(tok2));
+		if (len <= 0) {
+			return -1;
+		}
+		*cursor += len;
+		out->base = TOK_MARK_NAME;
+		strncpy(out->region, tok2, sizeof(out->region) - 1);
+		out->region[sizeof(out->region)] = '\0';
 	} else {
 		return -1;
 	}
@@ -156,7 +166,7 @@ parse_offset:
 //
 // resolves a single hxql_addr_t to an entry index.
 // returns the index on success, -1 on any error (including out of bounds).
-int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr)
+int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr, hxptr_error_t *res)
 {
 	int32_t base_idx;
 	int32_t result_idx = 0;
@@ -205,9 +215,18 @@ int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr)
 				}
 				i++;
 			}
-
 			// region name not found in profile
 			return -1;
+
+		case TOK_MARK_NAME:
+			uint32_t out;
+			hxptr_error_t err;
+			*res = hxsh_mark_find(sh, addr->region, &out);
+			if (res->code != HX_OK) {
+				return -1;
+			}
+			base_idx = find_entry_idx_by_addr(sh->hx->memory, out);
+			break;
 
 		default:
 			return -1;
@@ -234,14 +253,15 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 	hxql_parser_t result = { 0 };
 	hxql_addr_t lhs = { 0 };
 	hxql_addr_t rhs = { 0 };
+	HxshTokenType_t type;
+	hxptr_error_t err;
 	char buf[HXQL_CMD_LEN];
 	char *cursor;
 	char peek[64];
 	int len;
-	HxshTokenType_t type;
 
 	if (!sh || !args) {
-		result.res = HX_ERR_NULL;
+		result.res = hxptr_err(HX_ERR_NULL, "%s:%d: sh is NULL", __FILE__, __LINE__);
 		return result;
 	}
 
@@ -255,13 +275,13 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 		result.start_idx = sh->cur_entry;
 		result.end_idx = sh->cur_entry;
 		result.has_range = 0;
-		result.res = HX_OK;
+		result.res = hxptr_ok();
 		return result;
 	}
 
 	// parse lhs expression
 	if (parse_addr_expr(sh, &cursor, &lhs) != 0) {
-		result.res = HX_ERR_PARSE;
+		result.res = hxptr_err(HX_ERR_PARSE, "error parsing expression '%s'", buf);
 		return result;
 	}
 
@@ -274,38 +294,45 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 			cursor += len; // consume ':'
 
 			if (parse_addr_expr(sh, &cursor, &rhs) != 0) {
-				result.res = HX_ERR_PARSE;
+				result.res =
+					hxptr_err(HX_ERR_PARSE, "error parsing expression '%s'", buf);
 				return result;
 			}
 
 			result.has_range = 1;
 		} else {
 			// unexpected token after a complete expression
-			result.res = HX_ERR_PARSE;
+			result.res =
+				hxptr_err(HX_ERR_PARSE, "error parsing expression '%s'", buf);
 			return result;
 		}
 	}
 
 	// resolve lhs
-	result.start_idx = hxql_resolve_addr(sh, &lhs);
+	result.start_idx = hxql_resolve_addr(sh, &lhs, &result.res);
+	if (result.res.code != HX_OK) {
+		return result;
+	}
 	if (result.start_idx < 0) {
-		result.res = HX_ERR_OVERFLOW;
+		result.res =
+			hxptr_err(HX_ERR_OVERFLOW, "address falls outside of hex map, skipping");
 		return result;
 	}
 
 	if (result.has_range) {
-		result.end_idx = hxql_resolve_addr(sh, &rhs);
+		result.end_idx = hxql_resolve_addr(sh, &rhs, &result.res);
 		if (result.end_idx < 0) {
-			result.res = HX_ERR_OVERFLOW;
+			result.res = hxptr_err(
+				HX_ERR_OVERFLOW, "address falls outside of hex map, skipping");
 			return result;
 		}
 
 		// lhs must resolve strictly lower than rhs
 		if (result.start_idx >= result.end_idx) {
-			result.res = HX_ERR_PARSE;
+			result.res = hxptr_err(
+				HX_ERR_PARSE, "start address in range is higher than end address");
 			return result;
 		}
-
 		result.count = (uint16_t) (result.end_idx - result.start_idx + 1);
 	} else {
 		result.end_idx = result.start_idx;
@@ -313,8 +340,7 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 			? HXQL_LIST_DEFAULT
 			: DIFF_COUNT(result.start_idx);
 	}
-
-	result.res = HX_OK;
+	result.res = hxptr_ok();
 
 	return result;
 }

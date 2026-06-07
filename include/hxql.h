@@ -91,11 +91,11 @@ typedef struct {
 	int32_t end_idx;
 	uint16_t count;
 	uint8_t has_range;
-	HxptrResult_t res;
+	hxptr_error_t res;
 } hxql_parser_t;
 
 hxql_parser_t hxql_parse(hxsh_t *sh, const char *args);
-int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr);
+int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr, hxptr_error_t *res);
 // signature takes hxsh_t so the search case can update sh->search state
 hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *result);
 memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr);

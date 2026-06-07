@@ -49,12 +49,12 @@ hxptr_error_t mark_handler(hxsh_t *sh, const char *args, void *out_data)
 		cursor += len;
 
 		parsed = hxql_parse(sh, cursor);
-		if (parsed.res != HX_OK) {
-			return hxptr_err(parsed.res, "mark: unknown error occured");
+		if (parsed.res.code != HX_OK) {
+			return parsed.res;
 		}
 		if (parsed.has_range) {
 			return hxptr_err(
-				parsed.res, "mark: no support for ranges; pass an address");
+				parsed.res.code, "mark: no support for ranges; pass an address");
 		}
 
 		mark.addr = ADDR_OF(parsed.start_idx);
@@ -222,9 +222,10 @@ hxptr_error_t find_handler(hxsh_t *sh, const char *args, void *out_data)
 
 	if (*cursor != '\0') {
 		parsed = hxql_parse(sh, cursor);
-		if (parsed.res != HX_OK) {
-			return hxptr_err(parsed.res, "find: bad address expression");
+		if (parsed.res.code != HX_OK) {
+			return parsed.res;
 		}
+
 		req.range_start_idx = (uint32_t) parsed.start_idx;
 		req.range_end_idx = parsed.has_range
 			? (uint32_t) parsed.end_idx
@@ -388,13 +389,14 @@ hxptr_error_t list_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	parsed = hxql_parse(sh, args);
-	if (parsed.res != HX_OK) {
+	if (parsed.res.code != HX_OK) {
 		if (!sh->hx->profile) {
 			return hxptr_err(
-				parsed.res, "list: no profile loaded for this operation");
+				parsed.res.code, "list: no profile loaded for this operation");
 		}
-		return hxptr_err(parsed.res,
-			"list: region/memory is outside the bounds of the hex map. skipping");
+		return parsed.res;
+		// return hxptr_err(parsed.res,
+		// 	"list: region/memory is outside the bounds of the hex map. skipping");
 	}
 
 	if (parsed.has_range) {
@@ -439,13 +441,14 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	parsed = hxql_parse(sh, args);
-	if (parsed.res != HX_OK) {
+	if (parsed.res.code != HX_OK) {
 		if (!sh->hx->profile) {
 			return hxptr_err(
-				parsed.res, "list: no profile loaded for this operation");
+				parsed.res.code, "goto: no profile loaded for this operation");
 		}
-		return hxptr_err(parsed.res,
-			"goto: region/memory is outside the bounds of the hex map. skipping");
+		return parsed.res;
+		// return hxptr_err(parsed.res,
+		// 	"goto: region/memory is outside the bounds of the hex map. skipping");
 	}
 
 	// ranges are not valid for goto
