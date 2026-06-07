@@ -10,5 +10,6 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data);
 hxptr_error_t find_handler(hxsh_t *sh, const char *args, void *out_data);
 hxptr_error_t load_handler(hxsh_t *sh, const char *args, void *out_data);
 hxptr_error_t mark_handler(hxsh_t *sh, const char *args, void *out_data);
+hxptr_error_t help_handler(hxsh_t *sh, const char *args, void *out_data);
 
 #endif

@@ -1,6 +1,6 @@
 #include "hxsh.h"
 #include "hxql.h"
-#include "hxsh_handlers.h"
+#include "hxsh_cmds.h"
 #include "hxsh_render.h"
 #include "hxsh_table.h"
 #include "hxsh_tokenizer.h"
@@ -8,21 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// out_tok map
-static const token_map_t token_map[] = {
-	{ "info",  TOK_INFO  },
-    { "find",  TOK_FIND  },
-    { "goto",  TOK_GOTO  },
-	{ "which", TOK_WHICH },
-    { "list",  TOK_LIST  },
-    { "help",  TOK_HELP  },
-	{ "quit",  TOK_QUIT  },
-    { "load",  TOK_LOAD  },
-    { "mark",  TOK_MARK  }
-};
-static const size_t map_count = sizeof(token_map) / sizeof(token_map[0]);
-
 
 static int hxsh_readline_raw(char *buf, size_t buf_size)
 {
@@ -101,92 +86,68 @@ static int hxsh_readline_raw(char *buf, size_t buf_size)
 
 hxptr_error_t hxsh_repl(hxsh_t *sh)
 {
+	const hxsh_cmd_t *cmd = NULL;
 	hxsh_req_t req = { 0 };
-	HxshTokenType_t op = TOK_UNKNOWN;
 	hxptr_error_t err = { 0 };
 	hxql_result_t result = { 0 };
 
 	int eof = hxsh_readline_raw(sh->cmd, sizeof(sh->cmd));
-	if (eof) {
-		sh->running = 0;
-		return hxptr_ok();
-	}
 	if (eof == 2) {
 		return hxptr_err(
 			HX_ERR_BAD_TOKEN, "input too long; command truncated and ignored");
 	}
-
+	if (eof == 1) {
+		sh->running = 0;
+		return hxptr_ok();
+	}
 	if (sh->cmd[0] == '\0') {
 		return hxptr_ok();
 	}
 
 	char *p = sh->cmd;
-	char cmd[32];
-	int len = get_token(p, cmd, sizeof(cmd));
+	char input[32];
+	int len = get_token(p, input, sizeof(input));
 	p += len;
 
-	for (size_t i = 0; i < map_count; i++) {
-		if (strcmp(cmd, token_map[i].name) == 0) {
-			op = token_map[i].type;
+	for (size_t i = 0; i < cmd_table_count; i++) {
+		if (strcmp(input, cmd_table[i].name) == 0) {
+			cmd = &cmd_table[i];
 			break;
 		}
 	}
 
-	if (op == TOK_UNKNOWN) {
+	if (!cmd) {
 		return hxptr_err(
-			HX_ERR_UNKNOWN_CMD, "unknown command '%s'. try 'help'", cmd);
+			HX_ERR_UNKNOWN_CMD, "unknown command '%s'. try 'help'", input);
 	}
 
 	while (isspace((unsigned char) *p)) {
 		p++;
 	}
 
-	req.type = op;
-	switch (req.type) {
-		case TOK_INFO:
-			err = info_handler(sh, p, &req.req_type.info_req);
-			break;
-		case TOK_LIST:
-			err = list_handler(sh, p, &req.req_type.list_req);
-			break;
-		case TOK_WHICH:
-			err = which_handler(sh, p, &req.req_type.which_req);
-			break;
-		case TOK_FIND:
-			err = find_handler(sh, p, &req.req_type.search_req);
-			break;
-		case TOK_GOTO:
-			err = goto_handler(sh, p, &req.req_type.goto_req);
-			break;
-		// shell level commands don't go through the executor
-		case TOK_QUIT:
-			sh->running = 0;
-			goto quit_handler;
-		case TOK_MARK:
-			err = mark_handler(sh, p, NULL);
-			goto early_exit;
-		case TOK_LOAD:
-			err = load_handler(sh, p, NULL);
-			goto early_exit;
-		case TOK_HELP:
-			break;
+	// quit is the only handler-less command
+	if (cmd->type == TOK_QUIT) {
+		sh->running = 0;
+		return hxptr_ok();
 	}
+
+	req.type = cmd->type;
+	err = cmd->handler(sh, p, cmd->shell_only ? NULL : &req.req_type);
 	if (err.code != HX_OK) {
-		goto early_exit;
+		return err;
+	}
+
+	if (cmd->shell_only) {
+		return hxptr_ok();
 	}
 
 	err = hxql_execute_cmd(sh, &req, &result);
 	if (err.code != HX_OK) {
 		return err;
 	}
-
 	render(&result, sh);
 
-quit_handler:
 	return hxptr_ok();
-
-early_exit:
-	return err;
 }
 
 static int make_raw(hxsh_t *hx)
@@ -278,7 +239,7 @@ static inline int mark_alloc(hxsh_t *sh)
 hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
 {
 	if (!sh || !mark) {
-		return hxptr_err(HX_ERR_NULL, "mark_add: NULL argument");
+		return hxptr_err(HX_ERR_NULL, "mark_add(): NULL argument");
 	}
 
 	// reject duplicate names
@@ -287,8 +248,7 @@ hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
 		uint32_t idx = __builtin_ctz(used);
 		if (strcmp(sh->marks[idx].name, mark->name) == 0) {
 			return hxptr_err(HX_ERR_MARKS_DUP,
-				"mark: '%s' already exists; remove it first or pick a different "
-				"name",
+				"'%s' already exists; remove it first or pick a different name",
 				mark->name);
 		}
 		used &= used - 1;
@@ -301,6 +261,9 @@ hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
 			HXSH_MARKS_MAX);
 	}
 	memcpy(&sh->marks[idx], mark, sizeof(hxsh_mark_t));
+	printf("added new mark '%s' for address '%#08x'\n", sh->marks[idx].name,
+		sh->marks[idx].addr);
+
 	return hxptr_ok();
 }
 
@@ -385,7 +348,7 @@ hxptr_error_t hxsh_mark_list(hxsh_t *sh)
 	}
 
 	const uint8_t widths[] = { name_w, 10 };
-	table_set_widths(&t, widths, 4);
+	table_set_widths(&t, widths, 2);
 	table_print_header(&t, "marks");
 
 	while (used) {

@@ -1,5 +1,6 @@
 #include "hxsh_handlers.h"
 #include "hxql.h"
+#include "hxsh_cmds.h"
 #include "hxsh_tokenizer.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -8,11 +9,11 @@
 
 hxptr_error_t mark_handler(hxsh_t *sh, const char *args, void *out_data)
 {
+	UNUSED(out_data);
 	char tok[64];
 	int len;
 	char *cursor = (char *) args;
 	HxshTokenType_t tok_type;
-	hxptr_error_t err;
 	hxql_parser_t parsed;
 	hxsh_mark_t mark = { 0 };
 
@@ -256,7 +257,6 @@ hxptr_error_t info_handler(hxsh_t *sh, const char *args, void *out_data)
 	HxshTokenType_t tok_type;
 	char arg[64];
 	info_req_t req = { 0 };
-	uint8_t count;
 
 	token_map_t sub_cmds[] = {
 		{ "regions", TOK_REGIONS },
@@ -265,7 +265,6 @@ hxptr_error_t info_handler(hxsh_t *sh, const char *args, void *out_data)
 		{ "diag",    TOK_DIAG    },
 		{ "profile", TOK_PROFILE },
 	};
-	count = sizeof(sub_cmds) / sizeof(sub_cmds[0]);
 
 	if (!args || !*args) {
 		// no arguments: request everything
@@ -464,12 +463,29 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 hxptr_error_t help_handler(hxsh_t *sh, const char *args, void *out_data)
 {
-	UNUSED(sh);
 	UNUSED(args);
 	UNUSED(out_data);
+	hxsh_cmd_t *cmd;
+	char arg[64];
 
-	printf("no work done on the help command btw but take your time; it's not like "
-		   "we're waiting or anything...");
+	if (!args || !*args) {
+		printf("list of commands\n");
+		for (size_t i = 0; i < cmd_table_count; i++) {
+			cmd = &cmd_table[i];
+			printf("%s -- %s.\n", cmd->name, cmd->short_help);
+		}
 
-	return hxptr_ok();
+		return hxptr_ok();
+	}
+
+	if (get_token(args, arg, sizeof(arg)) > 0) {
+		for (size_t i = 0; i < cmd_table_count; i++) {
+			if (strcmp(arg, cmd_table[i].name) == 0) {
+				printf("%s\n", cmd_table[i].long_help);
+				return hxptr_ok();
+			}
+		}
+	}
+
+	return hxptr_err(HX_ERR_UNKNOWN_CMD, "unknown command '%s'. try 'help'", arg);
 }

@@ -116,7 +116,6 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		*cursor += len;
 		out->base = TOK_REGION_NAME;
 		strncpy(out->region, tok2, sizeof(out->region) - 1);
-		out->region[sizeof(out->region)] = '\0';
 	} else if (type == TOK_MARK_NAME) {
 		len = get_token(*cursor, tok2, sizeof(tok2));
 		if (len <= 0) {
@@ -124,8 +123,8 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		}
 		*cursor += len;
 		out->base = TOK_MARK_NAME;
+		// reusing the out->region for token;
 		strncpy(out->region, tok2, sizeof(out->region) - 1);
-		out->region[sizeof(out->region)] = '\0';
 	} else {
 		return -1;
 	}
@@ -170,8 +169,13 @@ int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr, hxptr_error_t *re
 {
 	int32_t base_idx;
 	int32_t result_idx = 0;
+	uint32_t out;
 	profile_region_t *region;
 	uint8_t i;
+
+	if (!res) {
+		return -1;
+	}
 
 	switch (addr->base) {
 		case TOK_DOT:
@@ -219,8 +223,6 @@ int32_t hxql_resolve_addr(hxsh_t *sh, const hxql_addr_t *addr, hxptr_error_t *re
 			return -1;
 
 		case TOK_MARK_NAME:
-			uint32_t out;
-			hxptr_error_t err;
 			*res = hxsh_mark_find(sh, addr->region, &out);
 			if (res->code != HX_OK) {
 				return -1;
@@ -254,7 +256,6 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 	hxql_addr_t lhs = { 0 };
 	hxql_addr_t rhs = { 0 };
 	HxshTokenType_t type;
-	hxptr_error_t err;
 	char buf[HXQL_CMD_LEN];
 	char *cursor;
 	char peek[64];
@@ -523,10 +524,15 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 {
 	hxptr_t *hx = sh->hx;
 	memory_entry_t *start;
+	search_result_t search_res = { 0 };
+	info_result_t info_res = { 0 };
+	list_result_t list_res = { 0 };
+	which_result_t which_res = { 0 };
+	goto_result_t goto_res = { 0 };
+	list_req_t *list_req;
 
 	switch (req->type) {
 		case TOK_INFO:
-			info_result_t info_res = { 0 };
 			result->type = HXQL_RES_INFO;
 			info_executor(hx, req->req_type.info_req, &info_res);
 			result->code = HX_OK;
@@ -534,8 +540,7 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 			break;
 
 		case TOK_LIST:
-			list_req_t *list_req = &req->req_type.list_req;
-			list_result_t list_res = { 0 };
+			list_req = &req->req_type.list_req;
 			result->type = HXQL_RES_LIST;
 
 			start = find_entry_by_addr(hx->memory, list_req->start_addr);
@@ -551,7 +556,6 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 			break;
 
 		case TOK_WHICH:
-			which_result_t which_res = { 0 };
 			result->type = HXQL_RES_WHICH;
 			which_executor(hx, &req->req_type.which_req, &which_res);
 			result->code = HX_OK;
@@ -559,7 +563,6 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 			break;
 
 		case TOK_GOTO:
-			goto_result_t goto_res = { 0 };
 			result->type = HXQL_RES_GOTO;
 			goto_executor(NULL, &req->req_type.goto_req, &goto_res);
 			result->code = HX_OK;
@@ -567,7 +570,6 @@ hxptr_error_t hxql_execute_cmd(hxsh_t *sh, hxsh_req_t *req, hxql_result_t *resul
 			break;
 
 		case TOK_FIND:
-			search_result_t search_res = { 0 };
 			result->type = HXQL_RES_FIND;
 			search_executor(sh, &req->req_type.search_req, &search_res, result);
 			memcpy(&result->data.search, &search_res, sizeof(search_res));
