@@ -60,6 +60,7 @@ typedef enum {
 	TOK_MK_LIST = (1 << 8),
 	TOK_MK_RM = (1 << 9),
 	TOK_MK_ADD = (1 << 10),
+	TOK_MK_MV = (1 << 11),
 
 	// argument types
 	TOK_HEX,
@@ -168,6 +169,7 @@ typedef struct {
 hxsh_t *hxsh_init(hxptr_t *core);
 hxptr_error_t hxsh_repl(hxsh_t *sh);
 hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark);
+hxptr_error_t hxsh_mark_mv(hxsh_t *sh, const hxsh_mark_t *mark);
 hxptr_error_t hxsh_mark_rm(hxsh_t *sh, const char *name);
 hxptr_error_t hxsh_mark_list(hxsh_t *sh);
 hxptr_error_t hxsh_mark_find(hxsh_t *sh, const char *mark, uint32_t *out_idx);

@@ -236,6 +236,27 @@ static inline int mark_alloc(hxsh_t *sh)
 	return -1;
 }
 
+hxptr_error_t hxsh_mark_mv(hxsh_t *sh, const hxsh_mark_t *mark)
+{
+	if (!sh || !mark) {
+		return hxptr_err(HX_ERR_NULL, "mark_mv(): NULL argument");
+	}
+	uint32_t addr;
+	hxptr_error_t err;
+
+	err = hxsh_mark_rm(sh, mark->name);
+	if (err.code != HX_OK) {
+		return err;
+	}
+
+	err = hxsh_mark_add(sh, mark);
+	if (err.code != HX_OK) {
+		return err;
+	}
+
+	return hxptr_ok();
+}
+
 hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
 {
 	if (!sh || !mark) {
@@ -261,8 +282,6 @@ hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
 			HXSH_MARKS_MAX);
 	}
 	memcpy(&sh->marks[idx], mark, sizeof(hxsh_mark_t));
-	printf("added new mark '%s' for address '%#08x'\n", sh->marks[idx].name,
-		sh->marks[idx].addr);
 
 	return hxptr_ok();
 }
