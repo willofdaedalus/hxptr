@@ -12,7 +12,6 @@ sparse_memory_t *sm_init(void)
 		return NULL;
 	}
 
-	mem->cap = MEM_CAPACITY;
 	mem->entries = malloc(mem->cap * sizeof(memory_entry_t));
 	if (!mem->entries) {
 		free(mem);
@@ -22,16 +21,49 @@ sparse_memory_t *sm_init(void)
 	return mem;
 }
 
+HxptrResult_t sm_reserve(
+	sparse_memory_t *mem, uint32_t entry_hint, uint32_t pool_hint)
+{
+	memory_entry_t *new_entries;
+	uint8_t *new_pool;
+
+	if (!mem) {
+		return HX_ERR_NULL;
+	}
+
+	if (entry_hint > mem->cap) {
+		new_entries = realloc(mem->entries, entry_hint * sizeof(memory_entry_t));
+		if (!new_entries) {
+			return HX_ERR_BAD_ALLOC;
+		}
+		mem->entries = new_entries;
+		mem->cap = entry_hint;
+	}
+
+	if (pool_hint > mem->pool_cap) {
+		new_pool = realloc(mem->data_pool, pool_hint);
+		if (!new_pool) {
+			return HX_ERR_BAD_ALLOC;
+		}
+
+		mem->data_pool = new_pool;
+		mem->pool_cap = pool_hint;
+	}
+
+	return HX_OK;
+}
+
 HxptrResult_t sm_append_record(
 	sparse_memory_t *mem, hxptr_record_t *record, uint32_t base_addr)
 {
 	memory_entry_t *entry, *temp;
+	uint8_t *temp_pool;
 
 	if (!record || !mem) {
 		return HX_ERR_NULL;
 	}
 
-	// check and double the capacity when necessary
+	// grow entries array — independent of pool
 	if (mem->count >= mem->cap) {
 		size_t new_cap = mem->cap ? mem->cap * 2 : 1;
 		temp = realloc(mem->entries, new_cap * sizeof(memory_entry_t));
@@ -42,20 +74,34 @@ HxptrResult_t sm_append_record(
 		mem->entries = temp;
 	}
 
+	// grow pool — independent of entries, sized by bytes actually needed
+	if (mem->pool_len + record->byte_count > mem->pool_cap) {
+		size_t new_pool_cap = mem->pool_cap ? mem->pool_cap * 2 : 4096;
+		while (new_pool_cap < mem->pool_len + record->byte_count) {
+			new_pool_cap *= 2;
+		}
+		temp_pool = realloc(mem->data_pool, new_pool_cap);
+		if (!temp_pool) {
+			return HX_ERR_BAD_ALLOC;
+		}
+		mem->pool_cap = new_pool_cap;
+		mem->data_pool = temp_pool;
+	}
+
 	entry = &mem->entries[mem->count];
-	// make sure this address is never more than the length of the mcu
-	// profile
 	entry->address = base_addr;
 	entry->byte_count = record->byte_count;
 	entry->linenum = record->linenum;
 	entry->checksum = record->checksum;
 	entry->byte_sum = record->byte_sum;
-	memcpy(entry->bytes, record->data, record->byte_count);
+	entry->data_offset = mem->pool_len;
+	memcpy(mem->data_pool + mem->pool_len, record->data, record->byte_count);
 	if (record->type == IHEX_DATA) {
 		entry->is_data_record = 1;
 	}
 
 	mem->count++;
+	mem->pool_len += record->byte_count;
 	mem->finalized = 0;
 
 	return HX_OK;

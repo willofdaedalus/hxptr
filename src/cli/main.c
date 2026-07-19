@@ -54,12 +54,9 @@ int main(int ac, char **av)
 		switch (c) {
 			case 'f':
 				if (strlen(optarg) > MAX_ARG_LEN) {
-					fprintf(stderr,
-						"fatal: hex file name longer than "
-						"allowed\n");
-					fprintf(stderr,
-						"fatal: consider moving the file or "
-						"renaming it\n");
+					fprintf(stderr, "fatal: hex file name longer than allowed\n");
+					fprintf(
+						stderr, "fatal: consider moving the file or renaming it\n");
 					return -1;
 				}
 
@@ -70,12 +67,10 @@ int main(int ac, char **av)
 
 			case 'p':
 				if (strlen(optarg) > MAX_ARG_LEN) {
-					fprintf(stderr,
-						"fatal: profile file name longer than "
-						"allowed\n");
-					fprintf(stderr,
-						"fatal: consider moving the file or "
-						"renaming it\n");
+					fprintf(
+						stderr, "fatal: profile file name longer than allowed\n");
+					fprintf(
+						stderr, "fatal: consider moving the file or renaming it\n");
 					return -1;
 				}
 

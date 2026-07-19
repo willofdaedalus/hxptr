@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 typedef struct {
 	uint32_t segment;
@@ -20,6 +21,7 @@ typedef struct {
 static HxptrResult_t hxptr_append_record(
 	hxptr_t *ctx, hxptr_record_t *record, hxptr_parse_state_t *state)
 {
+	static uint32_t prev_addr = 0x0;
 	uint32_t addr;
 	HxptrResult_t res;
 
@@ -241,8 +243,8 @@ const char *hxptr_strerror(HxptrResult_t err)
 		case HX_ERR_BAD_CONFIG:
 			return "unexpected symbol after directives";
 		case HX_ERR_PARSE_REGION:
-			return "bad region definition; expected region <name> <start> "
-				   "<end> [protected]";
+			return "bad region definition; expected region <name> <start> <end> "
+				   "[protected]";
 		case HX_ERR_PARSE_MEMORY:
 			return "bad memory definition; expected memory <type> <start> "
 				   "<end>";
@@ -280,6 +282,18 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	if (!fp) {
 		res = HX_ERR_BAD_FILE;
 		return hxptr_err(res, "could not access file at %s", path);
+	}
+
+	struct stat st;
+	if (fstat(fileno(fp), &st) == 0 && st.st_size > 0) {
+		uint32_t entry_hint = (uint32_t) (st.st_size / 32);
+		uint32_t pool_hint = (uint32_t) (st.st_size * 2 / 5);
+
+		res = sm_reserve(ctx->memory, entry_hint, pool_hint);
+		if (res != HX_OK) {
+			err = hxptr_err(res, "failed to reserve memory for '%s'", path);
+			goto cleanup;
+		}
 	}
 
 	// get the actual filename
@@ -333,8 +347,7 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 					break;
 				case HX_ERR_BAD_FILE:
 					err = hxptr_err(res,
-						"line %d: one or more records after "
-						"EOF is not allowed",
+						"line %d: one or more records after EOF is not allowed",
 						linenum);
 					break;
 				case HX_ERR_UKN_TYPE:
@@ -343,9 +356,8 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 					break;
 				case HX_ERR_BAD_ALLOC:
 					err = hxptr_err(res,
-						"bad allocation in %s:%d, "
-						"hxptr_append_record()",
-						__FILE__, __LINE__);
+						"bad allocation in %s:%d, hxptr_append_record()", __FILE__,
+						__LINE__);
 					break;
 				default:
 					err = hxptr_err(res, hxptr_strerror(res));

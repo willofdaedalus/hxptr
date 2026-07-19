@@ -346,8 +346,8 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 	return result;
 }
 
-static int search_entry(
-	memory_entry_t *entry, const uint8_t *pattern, uint8_t pattern_len)
+static int search_entry(sparse_memory_t *mem, memory_entry_t *entry,
+	const uint8_t *pattern, uint8_t pattern_len)
 {
 	if (entry->byte_count < pattern_len) {
 		return -1;
@@ -355,7 +355,8 @@ static int search_entry(
 
 	uint8_t lim = entry->byte_count - pattern_len;
 	for (uint8_t off = 0; off <= lim; off++) {
-		if (memcmp(&entry->bytes[off], pattern, pattern_len) == 0) {
+		if (memcmp(&mem->data_pool[entry->data_offset + off], pattern,
+				pattern_len) == 0) {
 			return (int) off;
 		}
 	}
@@ -477,8 +478,8 @@ static void search_executor(
 
 	scan_idx = scan_start;
 	while (1) {
-		hit_off =
-			search_entry(&mem->entries[scan_idx], req->pattern, req->pattern_len);
+		hit_off = search_entry(
+			sh->hx->memory, &mem->entries[scan_idx], req->pattern, req->pattern_len);
 
 		if (hit_off >= 0) {
 			res->hit_addr = mem->entries[scan_idx].address + (uint32_t) hit_off;

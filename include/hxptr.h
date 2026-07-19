@@ -11,7 +11,7 @@
 #define ESA_FACTOR            16
 #define ADDR_COUNT            2
 #define START_COUNT           4
-#define MAX_BYTES             0xff
+#define MAX_BYTES             0x10
 #define DISP_MAX_WIDTH        0x20
 #define MAX_DIRECTIVE_LEN     0x10
 #define MAX_OBJ_LEN           0x10
@@ -85,7 +85,7 @@ typedef struct {
 typedef struct {
 	uint32_t address; // contains extended hi and lo bytes
 	uint32_t linenum; // line number for conflict resolutions
-	uint8_t bytes[MAX_BYTES]; // actual data
+	uint32_t data_offset; // keeps track of the offset within the data pool
 	uint8_t byte_count; // number of bytes to help in fast rendering
 	uint8_t checksum; // checksum
 	uint8_t is_data_record; // tracks data records for printing
@@ -96,6 +96,9 @@ typedef struct {
 	uint32_t count;
 	uint32_t cap;
 	memory_entry_t *entries;
+	uint8_t *data_pool;
+	uint32_t pool_len;
+	uint32_t pool_cap;
 	uint8_t finalized;
 } sparse_memory_t;
 
@@ -125,6 +128,11 @@ typedef struct {
 	uint8_t checksum;
 	IHexRecordType_t type;
 } hxptr_record_t;
+
+typedef struct {
+	uint32_t gap_start_addr;
+	uint32_t gap_stop;
+} hxptr_gap_t;
 
 typedef struct {
 	uint16_t longest_record; // this is a private entry for address resolves
