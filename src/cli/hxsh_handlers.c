@@ -480,9 +480,9 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 hxptr_error_t help_handler(hxsh_t *sh, const char *args, void *out_data)
 {
-	UNUSED(args);
+	UNUSED(sh);
 	UNUSED(out_data);
-	hxsh_cmd_t *cmd;
+	const hxsh_cmd_t *cmd;
 	char arg[64];
 
 	if (!args || !*args) {

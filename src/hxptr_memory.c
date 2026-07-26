@@ -63,7 +63,7 @@ HxptrResult_t sm_append_record(
 		return HX_ERR_NULL;
 	}
 
-	// grow entries array — independent of pool
+	// grow entries array; independent of pool
 	if (mem->count >= mem->cap) {
 		size_t new_cap = mem->cap ? mem->cap * 2 : 1;
 		temp = realloc(mem->entries, new_cap * sizeof(memory_entry_t));
@@ -74,7 +74,7 @@ HxptrResult_t sm_append_record(
 		mem->entries = temp;
 	}
 
-	// grow pool — independent of entries, sized by bytes actually needed
+	// grow pool; independent of entries, sized by bytes actually needed
 	if (mem->pool_len + record->byte_count > mem->pool_cap) {
 		size_t new_pool_cap = mem->pool_cap ? mem->pool_cap * 2 : 4096;
 		while (new_pool_cap < mem->pool_len + record->byte_count) {
@@ -166,5 +166,6 @@ void sm_free(sparse_memory_t *mem)
 	}
 
 	free(mem->entries);
+	free(mem->data_pool);
 	free(mem);
 }

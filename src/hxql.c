@@ -70,8 +70,8 @@ memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr)
 // returns 0 on success, -1 on syntax error.
 static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 {
-	char tok[64];
-	char tok2[64];
+	char tok[32];
+	char tok2[32];
 	int len;
 	HxshTokenType_t type;
 	int sign;
@@ -113,9 +113,11 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		if (len <= 0) {
 			return -1;
 		}
+
 		*cursor += len;
 		out->base = TOK_REGION_NAME;
 		strncpy(out->region, tok2, sizeof(out->region) - 1);
+		out->region[sizeof(out->region) - 1] = '\0';
 	} else if (type == TOK_MARK_NAME) {
 		len = get_token(*cursor, tok2, sizeof(tok2));
 		if (len <= 0) {
@@ -125,6 +127,7 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		out->base = TOK_MARK_NAME;
 		// reusing the out->region for token;
 		strncpy(out->region, tok2, sizeof(out->region) - 1);
+		out->region[sizeof(out->region) - 1] = '\0';
 	} else {
 		return -1;
 	}
@@ -459,8 +462,7 @@ static void search_executor(
 			}
 			break;
 
-		case SEARCH_FRESH:
-			__attribute__((fallthrough));
+		// case SEARCH_FRESH: // not needed right now but might be needed later
 		default:
 			scan_start = (int32_t) sh->cur_entry;
 			if (scan_start < range_start || scan_start > range_end) {

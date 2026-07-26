@@ -11,7 +11,7 @@ pkgs.mkShell {
     bear
 
     # llvm/clang tools (ensures clangd and clang match)
-    llvmPkgs.clang
+    clang_22
     llvmPkgs.clang-tools
 	gdb
   ];

@@ -241,7 +241,6 @@ hxptr_error_t hxsh_mark_mv(hxsh_t *sh, const hxsh_mark_t *mark)
 	if (!sh || !mark) {
 		return hxptr_err(HX_ERR_NULL, "mark_mv(): NULL argument");
 	}
-	uint32_t addr;
 	hxptr_error_t err;
 
 	err = hxsh_mark_rm(sh, mark->name);

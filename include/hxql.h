@@ -77,7 +77,7 @@ typedef struct {
 	HxshTokenType_t base;
 	int32_t offset;
 	uint32_t literal_addr;
-	char region[32];
+	char region[64];
 } hxql_addr_t;
 
 // result of hxql_parse().

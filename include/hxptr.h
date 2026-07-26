@@ -28,6 +28,7 @@ typedef enum {
 	HX_ERR_BAD_ALLOC = -8,
 	HX_ERR_NOT_FINALIZED = -9,
 	HX_ERR_NO_EOF = -10,
+	HX_ERR_NULL_RECORD_DATA = -11,
 
 	// parser error codes
 	HX_ERR_PARSE = -30,
@@ -120,7 +121,7 @@ typedef struct {
 } reports_t;
 
 typedef struct {
-	uint8_t data[MAX_BYTES];
+	uint8_t *data;
 	uint32_t linenum;
 	uint16_t address;
 	uint16_t byte_sum; // fast way to detect gaps

@@ -1,3 +1,4 @@
+#include "hxptr.h"
 #include "hxptr_diagnostics.h"
 #include "hxptr_memory.h"
 #include "hxptr_profile.h"
@@ -21,7 +22,6 @@ typedef struct {
 static HxptrResult_t hxptr_append_record(
 	hxptr_t *ctx, hxptr_record_t *record, hxptr_parse_state_t *state)
 {
-	static uint32_t prev_addr = 0x0;
 	uint32_t addr;
 	HxptrResult_t res;
 
@@ -269,7 +269,9 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	char buf[512];
 	uint32_t linenum = 0;
 	HxptrResult_t res;
-	hxptr_record_t record = { 0 };
+
+	// initialize data to null and count to 0.
+	hxptr_record_t record = { .byte_count = 0, .data = NULL };
 	hxptr_parse_state_t state = { 0 };
 	hxptr_error_t err = { 0 };
 
@@ -296,7 +298,6 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		}
 	}
 
-	// get the actual filename
 	filename = strrchr(path, '/');
 	filename = filename ? filename + 1 : path;
 
@@ -323,6 +324,10 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 				case HX_ERR_NO_RECORD:
 					err = hxptr_err(res, "line %d: no record found", linenum);
 					break;
+				case HX_ERR_NULL_RECORD_DATA:
+					err = hxptr_err(
+						res, "line %d: realloc failed to allocate data", linenum);
+					break;
 				case HX_ERR_UKN_TYPE:
 					err = hxptr_err(res, "line %d: unknown record type '%d'",
 						linenum, record.type);
@@ -331,7 +336,6 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 					err = hxptr_err(res, hxptr_strerror(res));
 					break;
 			}
-
 			goto cleanup;
 		}
 
@@ -373,11 +377,14 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		goto cleanup;
 	}
 
+	// clean up the working buffer memory
+	free(record.data);
 	fclose(fp);
-
 	return hxptr_ok();
 
 cleanup:
+	// free here so bad files don't leak the scratch buffer
+	free(record.data);
 	fclose(fp);
 	return err;
 }

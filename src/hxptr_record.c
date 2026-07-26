@@ -1,6 +1,7 @@
 #include "hxptr_record.h"
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static inline uint8_t hex_char_to_nibble(const char c)
@@ -36,7 +37,7 @@ static HxptrResult_t ihex_to_bytes(
 
 	// find start of record (':')
 	while (*line && *line != ':') {
-		if (!isspace(*line)) {
+		if (!isspace((unsigned char) *line)) {
 			// non-whitespace before ':' is invalid
 			return HX_ERR_NO_RECORD;
 		}
@@ -114,7 +115,7 @@ static HxptrResult_t validate_hex_bytes(uint8_t *data, size_t data_len)
 	type = data[3];
 
 	// accounting for 1byte bc, 2byte addr, 1byte type and 1byte checksum
-	// if remainder is not bc then it's over or under count
+	// if remainder of "physical bytes" is not bc then it's over or under count
 	if ((data_len - 5) != bc) {
 		return HX_ERR_INV_RECORD;
 	}
@@ -133,7 +134,7 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	size_t count;
 	HxptrResult_t res;
 
-	if (!line) {
+	if (!line || !out_record) {
 		return HX_ERR_NULL;
 	}
 
@@ -141,20 +142,35 @@ HxptrResult_t hex_line_to_record(char *line, hxptr_record_t *out_record)
 	if (res != HX_OK) {
 		return res;
 	}
-	// in the event that the validation below fails we, can get the correct
-	// count from the current byte record
-	out_record->byte_count = bytes[0];
 
 	res = validate_hex_bytes((uint8_t *) bytes, count);
 	if (res != HX_OK) {
 		return res;
 	}
 
+	// safe structural allocation resize logic
+	if (bytes[0] != out_record->byte_count) {
+		uint8_t target_size = bytes[0];
+		uint8_t *temp = realloc(out_record->data, target_size);
+
+		// guard against genuine failures while safely ignoring returning
+		// NULL when shrinking down to a size of 0 (like an eof record)
+		if (!temp && target_size > 0) {
+			return HX_ERR_NULL_RECORD_DATA;
+		}
+
+		out_record->data = temp;
+		out_record->byte_count = target_size;
+	}
+
 	// actual record filling happens here
 	out_record->address = (uint16_t) ((bytes[1] << 8) | bytes[2]);
-
 	out_record->type = bytes[3];
-	memcpy(out_record->data, &bytes[4], out_record->byte_count);
+
+	// guard memcpy to protect the memory manager if byte_count is 0
+	if (out_record->byte_count > 0) {
+		memcpy(out_record->data, &bytes[4], out_record->byte_count);
+	}
 
 	out_record->byte_sum = sum;
 	out_record->checksum = bytes[count - 1];
