@@ -6,4 +6,4 @@ bin/
 *.json
 *.zip
 crash*
-fuzz/corpus/*
+fuzz/corpus/

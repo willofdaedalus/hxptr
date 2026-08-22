@@ -1,7 +1,7 @@
 # hxptr Makefile Intel HEX memory inspector (CLI + TUI)
 
 CC       := gcc
-CFLAGS   := -Wall -Wextra -Wpedantic -std=gnu99 -O0
+CFLAGS   := -Wall -Wextra -Wpedantic -std=gnu99 -Os
 LDFLAGS  :=
 LIBS     := -lm
 VERSION  := 0.1.0

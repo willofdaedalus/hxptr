@@ -189,9 +189,10 @@ hxptr_error_t find_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	if (strcmp(tok, "next") == 0 || strcmp(tok, "prev") == 0) {
+		// search activity check is done here
 		if (!sh->search.active) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"find: no active search. run 'search <pattern>' first");
+				"find: no active search. run 'find <pattern>' first");
 		}
 		req.direction = (strcmp(tok, "next") == 0) ? SEARCH_NEXT : SEARCH_PREV;
 		req.pattern_len = sh->search.pattern_len;

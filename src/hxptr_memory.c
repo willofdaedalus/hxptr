@@ -95,7 +95,10 @@ HxptrResult_t sm_append_record(
 	entry->checksum = record->checksum;
 	entry->byte_sum = record->byte_sum;
 	entry->data_offset = mem->pool_len;
-	memcpy(mem->data_pool + mem->pool_len, record->data, record->byte_count);
+
+	if (record->byte_count > 0) {
+		memcpy(mem->data_pool + mem->pool_len, record->data, record->byte_count);
+	}
 	if (record->type == IHEX_DATA) {
 		entry->is_data_record = 1;
 	}

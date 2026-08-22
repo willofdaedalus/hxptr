@@ -4,6 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 
+// bootstraps a fresh hxptr_t: allocates it, optionally loads a profile,
+// loads/parses the hex file, then finalizes memory (sort + gap/overlap
+// analysis). bails on the first failure, leaving *hx allocated so the caller
+// can still free it.
 static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 {
 	hxptr_error_t err = { 0 };

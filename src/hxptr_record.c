@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+// converts a single hex digit char to its 4-bit value; 17 (out of range) on
+// anything that isn't 0-9/a-f/A-F
 static inline uint8_t hex_char_to_nibble(const char c)
 {
 	if (c >= '0' && c <= '9') {
@@ -17,6 +19,7 @@ static inline uint8_t hex_char_to_nibble(const char c)
 	return 17;
 }
 
+// converts a 2-char hex pair (str[0], str[1]) into a single byte
 static inline uint8_t hex_to_byte(const char *str)
 {
 	// check return on these function calls
@@ -26,6 +29,9 @@ static inline uint8_t hex_to_byte(const char *str)
 	return (hi << 4) | lo;
 }
 
+// finds the ':' that starts a hex record, decodes every hex pair after it into
+// out, and accumulates their sum into *sum for the checksum check later.
+// out_count is set to the number of bytes actually decoded.
 static HxptrResult_t ihex_to_bytes(
 	const char *line, uint8_t *out, size_t *out_count, uint16_t *sum)
 {
@@ -89,6 +95,8 @@ static HxptrResult_t ihex_to_bytes(
 	return HX_OK;
 }
 
+// sums every byte in data and checks it wraps to 0 (mod 256), per the ihex
+// checksum rule
 static inline HxptrResult_t validate_checksum(uint8_t *data, size_t data_len)
 {
 	uint8_t sum = 0;
@@ -103,6 +111,8 @@ static inline HxptrResult_t validate_checksum(uint8_t *data, size_t data_len)
 	return (sum == 0) ? HX_OK : HX_ERR_BAD_CHKSM;
 }
 
+// cross-checks the declared byte count (data[0]) against the actual decoded
+// length, rejects unknown record types, then hands off to validate_checksum
 static HxptrResult_t validate_hex_bytes(uint8_t *data, size_t data_len)
 {
 	uint8_t bc, type;
