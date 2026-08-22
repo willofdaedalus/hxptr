@@ -5,3 +5,5 @@ bin/
 *.o
 *.json
 *.zip
+crash*
+fuzz/corpus/*

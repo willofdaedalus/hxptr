@@ -14,6 +14,7 @@ pkgs.mkShell {
     clang_22
     llvmPkgs.clang-tools
 	gdb
+	valgrind
   ];
 
   shellHook = ''
