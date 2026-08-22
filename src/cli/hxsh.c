@@ -9,6 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+// reads one line of input a byte at a time from a raw-mode terminal, handling
+// backspace, ctrl+l (redraw), and ctrl+d (eof) itself since canonical line
+// editing is off. arrow keys are recognized but not yet wired up (see TODOs
+// below). returns 0 on a normal line, 1 on ctrl+d, 2 if the line overflowed
+// buf_size (the rest of the line is drained and discarded).
 static int hxsh_readline_raw(char *buf, size_t buf_size)
 {
 	size_t len = 0;
@@ -150,6 +155,9 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	return hxptr_ok();
 }
 
+// puts the terminal into cbreak mode (no line buffering, no echo), stashing
+// the original settings in hx->orig_termios so hxsh_free() can restore them.
+// ISIG is deliberately left set so ctrl+c/ctrl+z still work normally.
 static int make_raw(hxsh_t *hx)
 {
 	struct termios raw;
@@ -219,6 +227,8 @@ void hxsh_free(hxsh_t *hx)
 	free(hx);
 }
 
+// finds the first free slot in sh->marks via the mark_used bitmask, claims it,
+// and returns its index. returns -1 if every slot is taken.
 static inline int mark_alloc(hxsh_t *sh)
 {
 	// check if all bits set; essentially all spaces are occupied
@@ -234,6 +244,26 @@ static inline int mark_alloc(hxsh_t *sh)
 	}
 
 	return -1;
+}
+
+hxptr_error_t hxsh_mark_mv(hxsh_t *sh, const hxsh_mark_t *mark)
+{
+	if (!sh || !mark) {
+		return hxptr_err(HX_ERR_NULL, "mark_mv(): NULL argument");
+	}
+	hxptr_error_t err;
+
+	err = hxsh_mark_rm(sh, mark->name);
+	if (err.code != HX_OK) {
+		return err;
+	}
+
+	err = hxsh_mark_add(sh, mark);
+	if (err.code != HX_OK) {
+		return err;
+	}
+
+	return hxptr_ok();
 }
 
 hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
@@ -261,8 +291,6 @@ hxptr_error_t hxsh_mark_add(hxsh_t *sh, const hxsh_mark_t *mark)
 			HXSH_MARKS_MAX);
 	}
 	memcpy(&sh->marks[idx], mark, sizeof(hxsh_mark_t));
-	printf("added new mark '%s' for address '%#08x'\n", sh->marks[idx].name,
-		sh->marks[idx].addr);
 
 	return hxptr_ok();
 }

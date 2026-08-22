@@ -138,7 +138,7 @@ void which_render(hxql_result_t *result, uint8_t type)
 	table_print_separator(&t);
 }
 
-void list_render(hxql_result_t *result)
+void list_render(hxql_result_t *result, sparse_memory_t *mem)
 {
 	static const char hex_map[] = "0123456789abcdef";
 	list_result_t res = result->data.list;
@@ -174,7 +174,7 @@ void list_render(hxql_result_t *result)
 		for (uint8_t j = 0; j < max_row_width; j++) {
 			int offset = j * 3;
 			if (j < entry->byte_count) {
-				uint8_t b = entry->bytes[j];
+				uint8_t b = mem->data_pool[entry->data_offset + j];
 				data_str[offset] = hex_map[(b >> 4) & 0x0f];
 				data_str[offset + 1] = hex_map[b & 0x0f];
 			} else {
@@ -262,7 +262,7 @@ void render(hxql_result_t *result, hxsh_t *sh)
 			break;
 
 		case HXQL_RES_LIST:
-			list_render(result);
+			list_render(result, sh->hx->memory);
 			break;
 
 		case HXQL_RES_WHICH:

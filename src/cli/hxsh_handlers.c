@@ -15,12 +15,16 @@ hxptr_error_t mark_handler(hxsh_t *sh, const char *args, void *out_data)
 	char *cursor = (char *) args;
 	HxshTokenType_t tok_type;
 	hxql_parser_t parsed;
+	hxptr_error_t err;
 	hxsh_mark_t mark = { 0 };
 
 	token_map_t sub_cmds[] = {
 		{ "add",  TOK_MK_ADD  },
 		{ "rm",   TOK_MK_RM   },
 		{ "list", TOK_MK_LIST },
+		{ "ls",   TOK_MK_LIST },
+		{ "move", TOK_MK_MV   },
+		{ "mv",   TOK_MK_MV   },
 	};
 
 	if (!sh) {
@@ -41,7 +45,7 @@ hxptr_error_t mark_handler(hxsh_t *sh, const char *args, void *out_data)
 	tok_type = classify_token(tok, sub_cmds, ARRAY_COUNT(sub_cmds));
 	if (tok_type == TOK_MK_LIST) {
 		return hxsh_mark_list(sh);
-	} else if (tok_type == TOK_MK_ADD) {
+	} else if (tok_type == TOK_MK_ADD || tok_type == TOK_MK_MV) {
 		len = get_token(cursor, mark.name, sizeof(mark.name));
 		if (len <= 0) {
 			return hxptr_err(
@@ -60,7 +64,20 @@ hxptr_error_t mark_handler(hxsh_t *sh, const char *args, void *out_data)
 
 		mark.addr = ADDR_OF(parsed.start_idx);
 
-		return hxsh_mark_add(sh, &mark);
+		if (tok_type == TOK_MK_ADD) {
+			err = hxsh_mark_add(sh, &mark);
+			if (err.code != HX_OK) {
+				return err;
+			}
+			printf(
+				"added new mark '%s' for address '%#08x'\n", mark.name, mark.addr);
+		} else if (tok_type == TOK_MK_MV) {
+			err = hxsh_mark_mv(sh, &mark);
+			if (err.code != HX_OK) {
+				return err;
+			}
+			printf("moved mark '%s' to new address '%#08x'\n", mark.name, mark.addr);
+		}
 	} else if (tok_type == TOK_MK_RM) {
 		len = get_token(cursor, tok, sizeof(tok));
 		if (len <= 0) {
@@ -172,9 +189,10 @@ hxptr_error_t find_handler(hxsh_t *sh, const char *args, void *out_data)
 	}
 
 	if (strcmp(tok, "next") == 0 || strcmp(tok, "prev") == 0) {
+		// search activity check is done here
 		if (!sh->search.active) {
 			return hxptr_err(HX_ERR_BAD_TOKEN,
-				"find: no active search. run 'search <pattern>' first");
+				"find: no active search. run 'find <pattern>' first");
 		}
 		req.direction = (strcmp(tok, "next") == 0) ? SEARCH_NEXT : SEARCH_PREV;
 		req.pattern_len = sh->search.pattern_len;
@@ -463,9 +481,9 @@ hxptr_error_t goto_handler(hxsh_t *sh, const char *args, void *out_data)
 
 hxptr_error_t help_handler(hxsh_t *sh, const char *args, void *out_data)
 {
-	UNUSED(args);
+	UNUSED(sh);
 	UNUSED(out_data);
-	hxsh_cmd_t *cmd;
+	const hxsh_cmd_t *cmd;
 	char arg[64];
 
 	if (!args || !*args) {

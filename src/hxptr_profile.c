@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+// advances p past any leading whitespace
 static char *skip_whitespace(char *p)
 {
 	while (*p && isspace((unsigned char) *p)) {
@@ -15,6 +16,8 @@ static char *skip_whitespace(char *p)
 	return p;
 }
 
+// pulls the next whitespace-delimited token out of *line, NUL-terminating it in
+// place and advancing *line past it. returns NULL once nothing is left.
 static char *next_token(char **line)
 {
 	char *start = skip_whitespace(*line);
@@ -38,6 +41,8 @@ static char *next_token(char **line)
 	return start;
 }
 
+// parses str as a uint32_t (base 0, so both hex and decimal are accepted).
+// fails on empty input, trailing garbage, or overflow.
 static HxptrResult_t parse_number(const char *str, uint32_t *out)
 {
 	char *endptr;
@@ -57,6 +62,7 @@ static HxptrResult_t parse_number(const char *str, uint32_t *out)
 	return HX_OK;
 }
 
+// handles the "mcu <name> <arch>" directive
 static HxptrResult_t parse_mcu_entry(mcu_profile_t *pf, char **line)
 {
 	char *name = next_token(line);
@@ -72,6 +78,7 @@ static HxptrResult_t parse_mcu_entry(mcu_profile_t *pf, char **line)
 	return HX_OK;
 }
 
+// handles the "memory <type> <start> <size>" directive
 static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char **line)
 {
 	char *type = next_token(line);
@@ -105,6 +112,7 @@ static HxptrResult_t parse_memory_entry(mcu_profile_t *pf, char **line)
 	return HX_OK;
 }
 
+// handles the "vendor <name>" directive
 static HxptrResult_t parse_vendor_entry(mcu_profile_t *pf, char **line)
 {
 	char *vendor = next_token(line);
@@ -117,6 +125,7 @@ static HxptrResult_t parse_vendor_entry(mcu_profile_t *pf, char **line)
 	return HX_OK;
 }
 
+// handles the "region <name> <start> <end> [protected]" directive
 static HxptrResult_t parse_region_entry(mcu_profile_t *pf, char **line)
 {
 	char *name = next_token(line);

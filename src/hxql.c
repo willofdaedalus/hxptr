@@ -70,8 +70,8 @@ memory_entry_t *find_entry_by_addr(sparse_memory_t *memory, uint32_t addr)
 // returns 0 on success, -1 on syntax error.
 static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 {
-	char tok[64];
-	char tok2[64];
+	char tok[32];
+	char tok2[32];
 	int len;
 	HxshTokenType_t type;
 	int sign;
@@ -113,9 +113,11 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		if (len <= 0) {
 			return -1;
 		}
+
 		*cursor += len;
 		out->base = TOK_REGION_NAME;
 		strncpy(out->region, tok2, sizeof(out->region) - 1);
+		out->region[sizeof(out->region) - 1] = '\0';
 	} else if (type == TOK_MARK_NAME) {
 		len = get_token(*cursor, tok2, sizeof(tok2));
 		if (len <= 0) {
@@ -125,6 +127,7 @@ static int parse_addr_expr(hxsh_t *sh, char **cursor, hxql_addr_t *out)
 		out->base = TOK_MARK_NAME;
 		// reusing the out->region for token;
 		strncpy(out->region, tok2, sizeof(out->region) - 1);
+		out->region[sizeof(out->region) - 1] = '\0';
 	} else {
 		return -1;
 	}
@@ -346,8 +349,10 @@ hxql_parser_t hxql_parse(hxsh_t *sh, const char *args)
 	return result;
 }
 
-static int search_entry(
-	memory_entry_t *entry, const uint8_t *pattern, uint8_t pattern_len)
+// looks for pattern inside a single entry's byte span. returns the byte offset
+// of the first match, or -1 if pattern doesn't fit or isn't found.
+static int search_entry(sparse_memory_t *mem, memory_entry_t *entry,
+	const uint8_t *pattern, uint8_t pattern_len)
 {
 	if (entry->byte_count < pattern_len) {
 		return -1;
@@ -355,7 +360,8 @@ static int search_entry(
 
 	uint8_t lim = entry->byte_count - pattern_len;
 	for (uint8_t off = 0; off <= lim; off++) {
-		if (memcmp(&entry->bytes[off], pattern, pattern_len) == 0) {
+		if (memcmp(&mem->data_pool[entry->data_offset + off], pattern,
+				pattern_len) == 0) {
 			return (int) off;
 		}
 	}
@@ -363,6 +369,8 @@ static int search_entry(
 	return -1;
 }
 
+// fills info_result_t with pointers straight into hx for whatever sections
+// info_req.args asked for; doesn't copy any of the underlying data
 static inline void info_executor(
 	hxptr_t *hx, info_req_t info_req, info_result_t *info_res)
 {
@@ -382,6 +390,8 @@ static inline void info_executor(
 	}
 }
 
+// linear scans the profile's regions and/or memory blocks for the one
+// containing req->cur_idx, per which bits are set in req->args
 static void which_executor(hxptr_t *hx, which_req_t *req, which_result_t *res)
 {
 	uint8_t i = 0;
@@ -421,6 +431,8 @@ static void which_executor(hxptr_t *hx, which_req_t *req, which_result_t *res)
 	res->args = req->args;
 }
 
+// trivial pass-through executor; the address was already resolved by
+// goto_handler, so there's nothing left to compute here
 static inline void goto_executor(hxptr_t *hx, goto_req_t *req, goto_result_t *res)
 {
 	UNUSED(hx);
@@ -431,59 +443,70 @@ static inline void goto_executor(hxptr_t *hx, goto_req_t *req, goto_result_t *re
 static void search_executor(
 	hxsh_t *sh, search_req_t *req, search_result_t *res, hxql_result_t *result)
 {
+	// imagine the following as entries in our memory
+	// 0 1 2 3 [4] 5 6 7 8 9
+	// suppose the last_hit_idx is at 4
+	// if the user passes SEARCH_NEXT; we start from 5 and wrap around to 3
+	// similarly if the user passes SEARCH_PREV; we start from 3 and wrap around to 5
 	sparse_memory_t *mem = sh->hx->memory;
-	int32_t scan_start, scan_idx, hit_off;
+	int32_t start_idx, scan_idx, match_offset;
 	int32_t range_start = (int32_t) req->range_start_idx;
 	int32_t range_end = (int32_t) req->range_end_idx;
-	uint8_t wrapped = 0;
+	uint8_t has_wrapped = 0;
 
-	// determine scan_start and initial wrapped flag
+	// determine start_idx and initial has_wrapped flag
 	switch (req->direction) {
 		case SEARCH_NEXT:
 			if (sh->search.last_hit_idx < 0 ||
 				sh->search.last_hit_idx >= range_end) {
-				scan_start = range_start;
-				wrapped = 1;
+				start_idx = range_start;
+				has_wrapped = 1;
 			} else {
-				scan_start = sh->search.last_hit_idx + 1;
+				start_idx = sh->search.last_hit_idx + 1;
 			}
 			break;
 
 		case SEARCH_PREV:
 			if (sh->search.last_hit_idx <= range_start) {
-				scan_start = range_end;
-				wrapped = 1;
+				start_idx = range_end;
+				has_wrapped = 1;
 			} else {
-				scan_start = sh->search.last_hit_idx - 1;
+				start_idx = sh->search.last_hit_idx - 1;
 			}
 			break;
 
 		case SEARCH_FRESH:
-			__attribute__((fallthrough));
 		default:
-			scan_start = (int32_t) sh->cur_entry;
-			if (scan_start < range_start || scan_start > range_end) {
-				scan_start = range_start;
+			start_idx = (int32_t) sh->cur_entry;
+			if (start_idx < range_start || start_idx > range_end) {
+				start_idx = range_start;
 			}
 			break;
 	}
 
-	// scan two segments: [scan_start .. far_end], then wrap [wrap_start ..
-	// scan_start-step] for PREV the direction is reversed; segments are symmetric
-	int32_t step = (req->direction == SEARCH_PREV) ? -1 : 1;
-	int32_t seg1_end = (req->direction == SEARCH_PREV) ? range_start : range_end;
-	int32_t seg2_start = (req->direction == SEARCH_PREV) ? range_end : range_start;
-	int32_t seg2_end = scan_start - step; // exclusive stop for wrap segment
+	// treat the search as two linear passes:
+	// forward:
+	//   [start_idx ... range_end]
+	//   [range_start ... start_idx-1]
+	//
+	// backward:
+	//   [start_idx ... range_start]
+	//   [range_end ... start_idx+1]
+	// this lets forward and backward searches share the same loop.
+	int32_t step_dir = (req->direction == SEARCH_PREV) ? -1 : 1;
+	int32_t init_pass_end = (step_dir < 0) ? range_start : range_end;
+	int32_t wrap_start = (req->direction == SEARCH_PREV) ? range_end : range_start;
+	int32_t wrap_stop = start_idx - step_dir; // exclusive stop for wrap segment
 
-	scan_idx = scan_start;
+	scan_idx = start_idx;
 	while (1) {
-		hit_off =
-			search_entry(&mem->entries[scan_idx], req->pattern, req->pattern_len);
+		match_offset = search_entry(
+			sh->hx->memory, &mem->entries[scan_idx], req->pattern, req->pattern_len);
 
-		if (hit_off >= 0) {
-			res->hit_addr = mem->entries[scan_idx].address + (uint32_t) hit_off;
+		if (match_offset >= 0) {
+			res->hit_addr = mem->entries[scan_idx].address + (uint32_t) match_offset;
 			res->found = 1;
-			res->wrapped = wrapped;
+			res->wrapped = has_wrapped;
 
 			sh->search.active = 1;
 			sh->search.last_hit_idx = scan_idx;
@@ -495,18 +518,18 @@ static void search_executor(
 			return;
 		}
 
-		if (scan_idx != seg1_end) {
-			scan_idx += step;
-		} else if (!wrapped && scan_start != seg2_start) {
+		if (scan_idx != init_pass_end) {
+			scan_idx += step_dir;
+		} else if (!has_wrapped && start_idx != wrap_start) {
 			// transition to wrap segment
-			scan_idx = seg2_start;
-			wrapped = 1;
+			scan_idx = wrap_start;
+			has_wrapped = 1;
 		} else {
 			break;
 		}
 
-		// stop wrap segment before we re-visit scan_start
-		if (wrapped && scan_idx == seg2_end + step) {
+		// stop wrap segment before we re-visit start_idx
+		if (has_wrapped && scan_idx == wrap_stop + step_dir) {
 			break;
 		}
 	}

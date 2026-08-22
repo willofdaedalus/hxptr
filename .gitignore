@@ -1,6 +1,9 @@
 build/
 bin/
 .cache/
-fuzz/
+.direnv/
 *.o
 *.json
+*.zip
+crash*
+fuzz/corpus/

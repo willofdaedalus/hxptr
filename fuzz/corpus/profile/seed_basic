@@ -1,0 +1,5 @@
+mcu attiny85 avr
+vendor atmel
+memory flash 0x0 0x2000
+memory sram 0x2000 0x200
+region bootloader 0x1e00 0x2000 protected

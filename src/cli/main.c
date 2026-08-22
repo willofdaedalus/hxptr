@@ -4,6 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 
+// bootstraps a fresh hxptr_t: allocates it, optionally loads a profile,
+// loads/parses the hex file, then finalizes memory (sort + gap/overlap
+// analysis). bails on the first failure, leaving *hx allocated so the caller
+// can still free it.
 static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 {
 	hxptr_error_t err = { 0 };
@@ -54,12 +58,9 @@ int main(int ac, char **av)
 		switch (c) {
 			case 'f':
 				if (strlen(optarg) > MAX_ARG_LEN) {
-					fprintf(stderr,
-						"fatal: hex file name longer than "
-						"allowed\n");
-					fprintf(stderr,
-						"fatal: consider moving the file or "
-						"renaming it\n");
+					fprintf(stderr, "fatal: hex file name longer than allowed\n");
+					fprintf(
+						stderr, "fatal: consider moving the file or renaming it\n");
 					return -1;
 				}
 
@@ -70,12 +71,10 @@ int main(int ac, char **av)
 
 			case 'p':
 				if (strlen(optarg) > MAX_ARG_LEN) {
-					fprintf(stderr,
-						"fatal: profile file name longer than "
-						"allowed\n");
-					fprintf(stderr,
-						"fatal: consider moving the file or "
-						"renaming it\n");
+					fprintf(
+						stderr, "fatal: profile file name longer than allowed\n");
+					fprintf(
+						stderr, "fatal: consider moving the file or renaming it\n");
 					return -1;
 				}
 

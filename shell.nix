@@ -1,5 +1,8 @@
 { pkgs ? import <nixpkgs> {} }:
 
+let
+  llvmPkgs = pkgs.llvmPackages_22;
+in
 pkgs.mkShell {
   # packages required at runtime/development
   buildInputs = with pkgs; [
@@ -8,10 +11,16 @@ pkgs.mkShell {
     bear
 
     # llvm/clang tools (ensures clangd and clang match)
-    clang-tools
+    clang_22
+    llvmPkgs.clang-tools
 	gdb
+	valgrind
   ];
 
+  shellHook = ''
+  echo "dev env loaded..."
+  clang --version
+  '';
   # this ensures that standard c library headers are discoverable
   # by clangd inside this specific environment.
   CPATH = "${pkgs.glibc.dev}/include";

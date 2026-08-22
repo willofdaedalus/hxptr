@@ -1,3 +1,4 @@
+#include "hxptr.h"
 #include "hxptr_diagnostics.h"
 #include "hxptr_memory.h"
 #include "hxptr_profile.h"
@@ -7,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 typedef struct {
 	uint32_t segment;
@@ -17,6 +19,8 @@ typedef struct {
 	uint8_t eof;
 } hxptr_parse_state_t;
 
+// folds a single parsed record into ctx, tracking ESA/ELA state across calls so
+// IHEX_DATA records resolve to a full 32-bit address. rejects anything after eof.
 static HxptrResult_t hxptr_append_record(
 	hxptr_t *ctx, hxptr_record_t *record, hxptr_parse_state_t *state)
 {
@@ -132,6 +136,8 @@ static HxptrResult_t hxptr_append_record(
 	return HX_OK;
 }
 
+// qsort comparator for memory_entry_t; sorts by address, then by line_num as a
+// tie-breaker (higher line_num wins, since it was written more recently)
 static int sm_comp(const void *a, const void *b)
 {
 	memory_entry_t *entry_a = (memory_entry_t *) a;
@@ -241,8 +247,8 @@ const char *hxptr_strerror(HxptrResult_t err)
 		case HX_ERR_BAD_CONFIG:
 			return "unexpected symbol after directives";
 		case HX_ERR_PARSE_REGION:
-			return "bad region definition; expected region <name> <start> "
-				   "<end> [protected]";
+			return "bad region definition; expected region <name> <start> <end> "
+				   "[protected]";
 		case HX_ERR_PARSE_MEMORY:
 			return "bad memory definition; expected memory <type> <start> "
 				   "<end>";
@@ -267,7 +273,8 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 	char buf[512];
 	uint32_t linenum = 0;
 	HxptrResult_t res;
-	hxptr_record_t record = { 0 };
+
+	hxptr_record_t record = { .byte_count = 0, .data = NULL };
 	hxptr_parse_state_t state = { 0 };
 	hxptr_error_t err = { 0 };
 
@@ -282,7 +289,26 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		return hxptr_err(res, "could not access file at %s", path);
 	}
 
-	// get the actual filename
+	// This is a memory optimization block to estimate the number of allocation
+	// entries and size constraints based on the raw file dimensions to minimize
+	// fragmentation
+	struct stat st;
+	if (fstat(fileno(fp), &st) == 0 && st.st_size > 0) {
+		// entry_hint is an estimate of how many records exist assuming each
+		// physical line is roughly 32 bytes.
+		uint32_t entry_hint = (uint32_t) (st.st_size / 32);
+		// pool_hint is an estimate of how many bytes are needed for the actual data
+		// values in each record, which is about 40% of the total file size in this
+		// case.
+		uint32_t pool_hint = (uint32_t) (st.st_size * 2 / 5);
+
+		res = sm_reserve(ctx->memory, entry_hint, pool_hint);
+		if (res != HX_OK) {
+			err = hxptr_err(res, "failed to reserve memory for '%s'", path);
+			goto cleanup;
+		}
+	}
+
 	filename = strrchr(path, '/');
 	filename = filename ? filename + 1 : path;
 
@@ -309,6 +335,10 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 				case HX_ERR_NO_RECORD:
 					err = hxptr_err(res, "line %d: no record found", linenum);
 					break;
+				case HX_ERR_NULL_RECORD_DATA:
+					err = hxptr_err(
+						res, "line %d: realloc failed to allocate data", linenum);
+					break;
 				case HX_ERR_UKN_TYPE:
 					err = hxptr_err(res, "line %d: unknown record type '%d'",
 						linenum, record.type);
@@ -317,7 +347,6 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 					err = hxptr_err(res, hxptr_strerror(res));
 					break;
 			}
-
 			goto cleanup;
 		}
 
@@ -333,8 +362,7 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 					break;
 				case HX_ERR_BAD_FILE:
 					err = hxptr_err(res,
-						"line %d: one or more records after "
-						"EOF is not allowed",
+						"line %d: one or more records after EOF is not allowed",
 						linenum);
 					break;
 				case HX_ERR_UKN_TYPE:
@@ -343,9 +371,8 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 					break;
 				case HX_ERR_BAD_ALLOC:
 					err = hxptr_err(res,
-						"bad allocation in %s:%d, "
-						"hxptr_append_record()",
-						__FILE__, __LINE__);
+						"bad allocation in %s:%d, hxptr_append_record()", __FILE__,
+						__LINE__);
 					break;
 				default:
 					err = hxptr_err(res, hxptr_strerror(res));
@@ -361,11 +388,14 @@ hxptr_error_t hxptr_load_file(hxptr_t *ctx, const char *path)
 		goto cleanup;
 	}
 
+	// clean up the working buffer memory
+	free(record.data);
 	fclose(fp);
-
 	return hxptr_ok();
 
 cleanup:
+	// free here so bad files don't leak the scratch buffer
+	free(record.data);
 	fclose(fp);
 	return err;
 }
@@ -397,11 +427,11 @@ hxptr_error_t hxptr_finalize_memory(hxptr_t *hx)
 		return hxptr_err(HX_OK, hxptr_strerror(HX_OK));
 	}
 
+	// sort all memory entries in ascending order
 	qsort(hx->memory->entries, hx->memory->count, sizeof(memory_entry_t), sm_comp);
 
 	hx->memory->finalized = 1;
 
-	// more should be done here
 	res = sm_analyze(hx, GAP_THRESHOLD_DEFAULT);
 	return hxptr_err(res, hxptr_strerror(res));
 }
@@ -424,11 +454,6 @@ hxptr_error_t hxptr_ok(void)
 	return (hxptr_error_t) { "42", HX_OK };
 }
 
-// hxptr_reset_profile
-//
-// replaces the current profile with a freshly loaded one.
-// the old profile is freed only after the new one is confirmed good,
-// so a failed load leaves the existing profile intact.
 hxptr_error_t hxptr_reset_profile(hxptr_t *ctx, const char *path)
 {
 	hxptr_error_t err = { 0 };
@@ -450,11 +475,6 @@ hxptr_error_t hxptr_reset_profile(hxptr_t *ctx, const char *path)
 	return hxptr_ok();
 }
 
-// hxptr_reset_file
-//
-// replaces the current hex file state with a fresh load.
-// all new allocations are validated before the old state is touched,
-// so a failed load leaves the context in a consistent (if stale) state.
 hxptr_error_t hxptr_reset_file(hxptr_t *ctx, const char *path)
 {
 	hxptr_error_t err = { 0 };
