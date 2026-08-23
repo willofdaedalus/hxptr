@@ -9,14 +9,59 @@
 #include <stdlib.h>
 #include <string.h>
 
-// reads one line of input a byte at a time from a raw-mode terminal, handling
-// backspace, ctrl+l (redraw), and ctrl+d (eof) itself since canonical line
-// editing is off. arrow keys are recognized but not yet wired up (see TODOs
-// below). returns 0 on a normal line, 1 on ctrl+d, 2 if the line overflowed
-// buf_size (the rest of the line is drained and discarded).
-static int hxsh_readline_raw(char *buf, size_t buf_size)
+// appends line to sh's history, evicting the oldest entry if full. empty lines
+// and immediate repeats of the last entry are skipped, matching how most
+// shells avoid cluttering history with accidental duplicates.
+static void history_push(hxsh_t *sh, const char *line)
 {
-	size_t len = 0;
+	if (!sh || !line || line[0] == '\0') {
+		return;
+	}
+
+	if (sh->history.count > 0 &&
+		strcmp(sh->history.entries[sh->history.count - 1], line) == 0) {
+		return;
+	}
+
+	if (sh->history.count == HXSH_HISTORY_MAX) {
+		// drop the oldest entry, shifting everything else down
+		memmove(sh->history.entries[0], sh->history.entries[1],
+			(HXSH_HISTORY_MAX - 1) * HXQL_CMD_LEN);
+		sh->history.count--;
+	}
+
+	strncpy(sh->history.entries[sh->history.count], line, HXQL_CMD_LEN - 1);
+	sh->history.entries[sh->history.count][HXQL_CMD_LEN - 1] = '\0';
+	sh->history.count++;
+}
+
+// redraws the current input line in place at a given cursor position: return
+// to column 0, clear to the end of the line, reprint the prompt and buf, then
+// walk the terminal cursor back to sit at logical position `cursor` within
+// buf (rather than at the end of what was just printed). used any time buf's
+// contents change out from under the terminal's own idea of the line (history
+// browsing, or a mid-line insert/delete).
+static void redraw_line_at(const char *buf, size_t len, size_t cursor)
+{
+	printf("\r\033[K" PROMPT "%.*s", (int) len, buf);
+	if (len > cursor) {
+		printf("\033[%zuD", len - cursor);
+	}
+	fflush(stdout);
+}
+
+// reads one line of input a byte at a time from a raw-mode terminal, handling
+// backspace, ctrl+l (redraw), ctrl+d (eof), up/down history browsing, and
+// left/right cursor movement itself since canonical line editing is off.
+// cursor is the logical edit position within buf (0..len); typing or
+// backspacing away from the end of the line shifts the tail of buf rather
+// than clobbering it, matching normal terminal line-editing behavior. returns
+// 0 on a normal line, 1 on ctrl+d, 2 if the line overflowed buf_size (the
+// rest of the line is drained and discarded).
+static int hxsh_readline_raw(hxsh_t *sh, char *buf, size_t buf_size)
+{
+	size_t len = 0, cursor = 0;
+	sh->history.cursor = sh->history.count; // start "not browsing"
 	printf(PROMPT);
 	fflush(stdout);
 
@@ -33,57 +78,122 @@ static int hxsh_readline_raw(char *buf, size_t buf_size)
 		} else if (c == 0x0c) {
 			// ctrl+l
 			printf("\033[H\033[2J");
-			printf(PROMPT "%.*s", (int) len, buf);
-			fflush(stdout);
+			redraw_line_at(buf, len, cursor);
 		} else if (c == 0x7f || c == 0x08) {
 			// backspace
-			if (len > 0) {
-				len--;
-				printf("\b \b");
-				fflush(stdout);
+			if (cursor > 0) {
+				if (cursor == len) {
+					// fast path: erasing at the end of the line
+					len--;
+					cursor--;
+					printf("\b \b");
+					fflush(stdout);
+				} else {
+					// erasing mid-line; shift the tail left over the gap
+					memmove(&buf[cursor - 1], &buf[cursor], len - cursor);
+					len--;
+					cursor--;
+					redraw_line_at(buf, len, cursor);
+				}
 			}
 		} else if (c == '\n' || c == '\r') {
 			// enter
 			buf[len] = '\0';
 			printf("\n");
+			history_push(sh, buf);
 			return 0;
 		} else if (c == 0x1b) {
 			// escape sequence (arrow keys)
 			char seq[2];
-			if (read(STDIN_FILENO, &seq[0], 1) == 0) {
+			if (read(STDIN_FILENO, &seq[0], 1) <= 0) {
 				continue;
 			}
-			if (read(STDIN_FILENO, &seq[1], 1) == 0) {
+			if (read(STDIN_FILENO, &seq[1], 1) <= 0) {
 				continue;
 			}
 
 			if (seq[0] == '[') {
 				switch (seq[1]) {
 					case 'A':
-						break; // TODO: history prev
+						// history prev (older)
+						if (sh->history.cursor > 0) {
+							sh->history.cursor--;
+							len = strlen(sh->history.entries[sh->history.cursor]);
+							memcpy(buf, sh->history.entries[sh->history.cursor],
+								len + 1);
+							cursor = len; // land at end of the loaded line
+							redraw_line_at(buf, len, cursor);
+						}
+						break;
 					case 'B':
-						break; // TODO: history next
+						// history next (newer), or back to a blank line once
+						// past the newest entry
+						if (sh->history.cursor < sh->history.count) {
+							sh->history.cursor++;
+							if (sh->history.cursor == sh->history.count) {
+								len = 0;
+								buf[0] = '\0';
+							} else {
+								len =
+									strlen(sh->history.entries[sh->history.cursor]);
+								memcpy(buf, sh->history.entries[sh->history.cursor],
+									len + 1);
+							}
+							cursor = len;
+							redraw_line_at(buf, len, cursor);
+						}
+						break;
 					case 'C':
-						break; // TODO: move cursor
+						// right: move cursor forward, if not at the end
+						if (cursor < len) {
+							cursor++;
+							printf("\033[C");
+							fflush(stdout);
+						}
+						break;
 					case 'D':
-						break; // TODO: move cursor
+						// left: move cursor backward, if not at the start
+						if (cursor > 0) {
+							cursor--;
+							printf("\033[D");
+							fflush(stdout);
+						}
+						break;
 				}
 			}
 		} else {
-			if (len < buf_size - 1) {
+			if (len >= buf_size - 1) {
+				if (cursor == len) {
+					// buffer full while appending at the end; abandon this
+					// line the same way the old append-only path did
+					while (c != '\n' && c != '\r') {
+						if (read(STDIN_FILENO, &c, 1) <= 0) {
+							break;
+						}
+					}
+					buf[len] = '\0';
+					printf("\n");
+					// return a distinct value so the repl can warn the user
+					return 2;
+				}
+				// buffer full and cursor is mid-line; there's no room to
+				// insert without dropping a byte we'd rather keep, so just
+				// ignore the keystroke instead of corrupting buf
+				continue;
+			}
+
+			if (cursor == len) {
+				// fast path: appending at the end of the line
 				buf[len++] = c;
+				cursor++;
 				write(STDOUT_FILENO, &c, 1);
 			} else {
-				// buffer full; drain remaining input on this line silently
-				while (c != '\n' && c != '\r') {
-					if (read(STDIN_FILENO, &c, 1) <= 0) {
-						break;
-					}
-				}
-				buf[len] = '\0';
-				printf("\n");
-				// return a distinct value so the repl can warn the user
-				return 2;
+				// inserting mid-line; shift the tail right to make room
+				memmove(&buf[cursor + 1], &buf[cursor], len - cursor);
+				buf[cursor] = c;
+				len++;
+				cursor++;
+				redraw_line_at(buf, len, cursor);
 			}
 		}
 	}
@@ -96,7 +206,7 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	hxptr_error_t err = { 0 };
 	hxql_result_t result = { 0 };
 
-	int eof = hxsh_readline_raw(sh->cmd, sizeof(sh->cmd));
+	int eof = hxsh_readline_raw(sh, sh->cmd, sizeof(sh->cmd));
 	if (eof == 2) {
 		return hxptr_err(
 			HX_ERR_BAD_TOKEN, "input too long; command truncated and ignored");
@@ -110,8 +220,19 @@ hxptr_error_t hxsh_repl(hxsh_t *sh)
 	}
 
 	char *p = sh->cmd;
-	char input[32];
+	char input[32] = { 0 };
 	int len = get_token(p, input, sizeof(input));
+
+	// get_token() only writes/null-terminates input on a real token; a 0 or
+	// negative return leaves it untouched, so both cases must be handled
+	// before input is read or p is advanced
+	if (len == 0) {
+		// whitespace-only line; nothing to do
+		return hxptr_ok();
+	}
+	if (len < 0) {
+		return hxptr_err(HX_ERR_BAD_TOKEN, "command name too long");
+	}
 	p += len;
 
 	for (size_t i = 0; i < cmd_table_count; i++) {

@@ -8,6 +8,7 @@
 #define HXQL_LIST_DEFAULT  0x0f
 #define CMD_MAX            0x80
 #define HXSH_MARKS_MAX     (0x20)
+#define HXSH_HISTORY_MAX   (0x40)
 #define INFO_PROF_MASK     (TOK_REGIONS | TOK_PROFILE | TOK_MEMORY)
 #define WHICH_MASK         (TOK_WH_ADDR | TOK_WH_REGION | TOK_WH_MEMORY)
 
@@ -99,6 +100,12 @@ typedef struct {
 } hxsh_mark_t;
 
 typedef struct {
+	char entries[HXSH_HISTORY_MAX][HXQL_CMD_LEN];
+	uint32_t count; // number of entries actually stored, <= HXSH_HISTORY_MAX
+	uint32_t cursor; // browse position; == count means "not browsing" (live edit)
+} hxsh_history_t;
+
+typedef struct {
 	uint8_t pattern[HXSH_SEARCH_MAX_PATTERN];
 	uint8_t pattern_len;
 	uint32_t range_start_idx;
@@ -161,6 +168,7 @@ typedef struct {
 	uint32_t cur_entry;
 	uint32_t search_addr;
 	hxsh_search_t search;
+	hxsh_history_t history;
 	char cmd[HXQL_CMD_LEN];
 	int8_t running;
 	struct termios orig_termios;
@@ -256,7 +264,7 @@ hxptr_error_t hxsh_mark_find(hxsh_t *sh, const char *mark, uint32_t *out_idx);
 //
 // @param sh	The active shell session
 // @param addr	The address whose marks should be removed
-// hxsh_t hxsh_mark_rm_addr(hxsh_t *sh, uint32_t addr);
+hxsh_t hxsh_mark_rm_addr(hxsh_t *sh, uint32_t addr);
 
 // Restores the terminal to its original (pre-hxsh_init) mode and frees the session
 //
