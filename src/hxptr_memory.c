@@ -12,6 +12,7 @@ sparse_memory_t *sm_init(void)
 		return NULL;
 	}
 
+	mem->cap = MEM_CAPACITY;
 	mem->entries = malloc(mem->cap * sizeof(memory_entry_t));
 	if (!mem->entries) {
 		free(mem);
@@ -124,37 +125,39 @@ HxptrResult_t sm_analyze(hxptr_t *ctx, uint32_t threshold)
 	}
 
 	stats = ctx->stats;
-	for (uint32_t i = 0; i < ctx->memory->count - 1; i++) {
-		cur = &ctx->memory->entries[i];
-		next = &ctx->memory->entries[i + 1];
+	if (ctx->memory->count > 0) {
+		for (uint32_t i = 0; i < ctx->memory->count - 1; i++) {
+			cur = &ctx->memory->entries[i];
+			next = &ctx->memory->entries[i + 1];
 
-		cur_end = cur->address + cur->byte_count;
+			cur_end = cur->address + cur->byte_count;
 
-		if (next->address < cur_end) {
-			// overlap detected
-			overlap_sz = cur_end - next->address;
-			diagnostic_t d = { .type = DIAG_OVERLAP,
-				.address = next->address,
-				.size = overlap_sz,
-				.first_idx = i,
-				.second_idx = i + 1 };
-			diag_append(ctx, &d);
-			stats->total_overlaps++;
-		} else if (next->address > cur_end) {
-			// gap detected
-			gap_size = next->address - cur_end;
-			if (gap_size >= threshold) {
-				diagnostic_t d = { .type = DIAG_GAP,
-					.address = cur_end,
-					.size = gap_size,
+			if (next->address < cur_end) {
+				// overlap detected
+				overlap_sz = cur_end - next->address;
+				diagnostic_t d = { .type = DIAG_OVERLAP,
+					.address = next->address,
+					.size = overlap_sz,
 					.first_idx = i,
 					.second_idx = i + 1 };
 				diag_append(ctx, &d);
-				stats->total_gaps++;
-			}
+				stats->total_overlaps++;
+			} else if (next->address > cur_end) {
+				// gap detected
+				gap_size = next->address - cur_end;
+				if (gap_size >= threshold) {
+					diagnostic_t d = { .type = DIAG_GAP,
+						.address = cur_end,
+						.size = gap_size,
+						.first_idx = i,
+						.second_idx = i + 1 };
+					diag_append(ctx, &d);
+					stats->total_gaps++;
+				}
 
-			if (gap_size > stats->largest_gap) {
-				stats->largest_gap = gap_size;
+				if (gap_size > stats->largest_gap) {
+					stats->largest_gap = gap_size;
+				}
 			}
 		}
 	}

@@ -73,6 +73,9 @@ static HxptrResult_t ihex_to_bytes(
 	if (hex_chars < 10 || (hex_chars & 1) == 1) {
 		return HX_ERR_INV_RECORD;
 	}
+	if (hex_chars > (size_t) (MAX_BYTE_COUNT * 2)) {
+		return HX_ERR_INV_RECORD;
+	}
 
 	// convert hex pairs to bytes
 	idx = 0;

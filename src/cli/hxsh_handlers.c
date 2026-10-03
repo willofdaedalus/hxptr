@@ -181,6 +181,10 @@ hxptr_error_t find_handler(hxsh_t *sh, const char *args, void *out_data)
 		return hxptr_err(
 			HX_ERR_BAD_TOKEN, "find: expected a hex pattern, 'next', or 'prev'");
 	}
+	if (sh->hx->memory->count == 0) {
+		return hxptr_err(
+			HX_ERR_BAD_TOKEN, "find: no data records loaded, nothing to search");
+	}
 
 	len = get_token(cursor, tok, sizeof(tok));
 	if (len <= 0) {

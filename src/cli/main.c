@@ -13,7 +13,7 @@ static HxptrResult_t init_core(hxptr_t **hx, int pflag, char *prof, char *file)
 	hxptr_error_t err = { 0 };
 
 	*hx = hxptr_init();
-	if (!hx) {
+	if (!*hx) {
 		fprintf(stderr, "hxptr: error initializing hxptr object\n");
 		return HX_ERR_NULL;
 	}
