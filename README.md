@@ -175,5 +175,5 @@ Run `info diag` to see the full report.
 
 ## License
 
-This project is licensed under the **GNU General Public License v2.0 only** (GPL-2.0-only). 
+This project is licensed under the **Apache License 2.0** (Apache-2.0).
 See the `LICENSE` file for the full license text.
