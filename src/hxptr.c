@@ -70,12 +70,11 @@ static HxptrResult_t hxptr_append_record(
 				ctx->stats->addr_lowest = addr;
 			}
 
-			if (addr > ctx->stats->addr_highest) {
-				ctx->stats->addr_highest = addr;
-			}
-
-			if (record->byte_count > ctx->stats->longest_record) {
-				ctx->stats->longest_record = record->byte_count;
+			if (record->byte_count > 0) {
+				uint32_t end = addr + record->byte_count - 1;
+				if (end > ctx->stats->addr_highest) {
+					ctx->stats->addr_highest = end;
+				}
 			}
 
 			ctx->stats->total_bytes += record->byte_count;

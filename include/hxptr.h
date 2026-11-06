@@ -18,13 +18,13 @@
 #include <stdint.h>
 
 #define MAX_ARG_LEN           0xff
-#define MAX_MEMORY_BLOCKS     16
-#define MAX_REGIONS           16
-#define MAX_MCU_NAME_LEN      32
-#define GAP_THRESHOLD_DEFAULT 128
-#define ESA_FACTOR            16
-#define ADDR_COUNT            2
-#define START_COUNT           4
+#define MAX_MEMORY_BLOCKS     0x10
+#define MAX_REGIONS           0x10
+#define MAX_MCU_NAME_LEN      0x20
+#define GAP_THRESHOLD_DEFAULT 0x80
+#define ESA_FACTOR            0x10
+#define ADDR_COUNT            0x02
+#define START_COUNT           0x04
 #define MAX_BYTES             0x10
 #define DISP_MAX_WIDTH        0x20
 #define MAX_DIRECTIVE_LEN     0x10
@@ -64,10 +64,6 @@ typedef enum {
 	HX_ERR_MARKS_404 = -55,
 	HX_ERR_MARKS_DUP = -56,
 } HxptrResult_t;
-
-typedef enum {
-	PR_OK = 0,
-} ParserResult_t;
 
 typedef enum {
 	IHEX_DATA = 0x0, // data
